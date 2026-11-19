@@ -4,7 +4,7 @@ import { ApiError } from "./validation.ts";
 export async function uploadResponse(request: Request, service: OrnamentService): Promise<Response> {
   try {
     const form = await request.formData();
-    const ornament = await service.upload(form.get("initials"), form.get("model"));
+    const ornament = await service.upload(form.get("initials"), form.get("message"), form.get("model"));
     return Response.json({ ornament }, { status: 201 });
   } catch (error) {
     return errorResponse(error);

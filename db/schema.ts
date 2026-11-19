@@ -6,6 +6,7 @@ export const ornaments = sqliteTable(
   {
     id: text("id").primaryKey(),
     initials: text("initials").notNull(),
+    message: text("message").notNull().default(""),
     slot: integer("slot").notNull(),
     objectKey: text("object_key").notNull().unique(),
     originalName: text("original_name").notNull(),

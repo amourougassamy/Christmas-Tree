@@ -84,19 +84,23 @@ function fixture() {
   return { repository, store, service };
 }
 
-function uploadRequest(initials: string, name = "star.3dm", bytes = new Uint8Array([1, 2, 3])) {
+const VALID_RHINO_BYTES = new TextEncoder().encode("3D Geometry File Format       80 fixture");
+
+function uploadRequest(initials: string, name = "star.3dm", bytes = VALID_RHINO_BYTES, message = "") {
   const form = new FormData();
   form.set("initials", initials);
+  form.set("message", message);
   form.set("model", new File([bytes], name));
   return new Request("https://tree.test/api/ornaments", { method: "POST", body: form });
 }
 
 test("public upload, list, and model stream contract", async () => {
   const { service } = fixture();
-  const created = await uploadResponse(uploadRequest("AB"), service);
+  const created = await uploadResponse(uploadRequest("AB", "star.3dm", VALID_RHINO_BYTES, "  Happy holidays  "), service);
   assert.equal(created.status, 201);
-  const payload = await created.json() as { ornament: { id: string; slot: number; modelUrl: string } };
+  const payload = await created.json() as { ornament: { id: string; slot: number; message: string; modelUrl: string } };
   assert.equal(payload.ornament.slot, 1);
+  assert.equal(payload.ornament.message, "Happy holidays");
   assert.equal(payload.ornament.modelUrl, "/api/ornaments/ornament-1/model");
 
   const listed = await listResponse(new Request("https://tree.test/api/ornaments"), service);
@@ -105,8 +109,8 @@ test("public upload, list, and model stream contract", async () => {
 
   const model = await modelResponse(payload.ornament.id, service);
   assert.equal(model.status, 200);
-  assert.equal(model.headers.get("content-length"), "3");
-  assert.deepEqual(new Uint8Array(await model.arrayBuffer()), new Uint8Array([1, 2, 3]));
+  assert.equal(model.headers.get("content-length"), String(VALID_RHINO_BYTES.length));
+  assert.deepEqual(new Uint8Array(await model.arrayBuffer()), VALID_RHINO_BYTES);
 });
 
 test("60-slot allocator archives the displaced record and delete restores it", async () => {
@@ -138,6 +142,8 @@ test("upload validation enforces initials, extension, and 10 MiB limit", async (
     [uploadRequest("ABCDE"), 400, "INVALID_INITIALS"],
     [uploadRequest("AB", "star.obj"), 415, "INVALID_MODEL_TYPE"],
     [uploadRequest("AB", "star.3dm", new Uint8Array(MAX_MODEL_BYTES + 1)), 413, "MODEL_TOO_LARGE"],
+    [uploadRequest("AB", "star.3dm", new Uint8Array([1]), "x".repeat(81)), 400, "INVALID_MESSAGE"],
+    [uploadRequest("AB", "fake.3dm", new TextEncoder().encode("not a Rhino file")), 415, "INVALID_MODEL_CONTENT"],
   ] as const;
 
   for (const [request, status, code] of cases) {

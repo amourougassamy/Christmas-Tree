@@ -10,6 +10,7 @@ const eslintConfig = defineConfig([
     ".vinext/**",
     ".wrangler/**",
     ".sites-runtime/**",
+    "public/rhino3dm/**",
     "outputs/**",
     "work/**",
   ]),

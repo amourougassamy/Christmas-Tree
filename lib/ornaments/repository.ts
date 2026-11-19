@@ -6,6 +6,7 @@ function fromRow(row: Row): OrnamentRecord {
   return {
     id: String(row.id),
     initials: String(row.initials),
+    message: String(row.message ?? ""),
     slot: Number(row.slot),
     objectKey: String(row.object_key),
     originalName: String(row.original_name),
@@ -42,11 +43,12 @@ export class D1OrnamentRepository implements OrnamentRepository {
       `).bind(record.createdAt, record.slot),
       this.db.prepare(`
         INSERT INTO ornaments
-          (id, initials, slot, object_key, original_name, byte_size, created_at, archived_at, deleted_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL)
+          (id, initials, message, slot, object_key, original_name, byte_size, created_at, archived_at, deleted_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
       `).bind(
         record.id,
         record.initials,
+        record.message,
         record.slot,
         record.objectKey,
         record.originalName,
