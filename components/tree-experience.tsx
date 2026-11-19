@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AmbientLight,
   BufferAttribute,
@@ -145,31 +145,14 @@ function disposeObject(root: Object3D) {
   });
 }
 
-export function TreeExperience() {
+export function TreeExperience({ ornaments }: { ornaments: Ornament[] }) {
   const mountRef = useRef<HTMLDivElement>(null);
   const buttonRefs = useRef(new Map<string, HTMLButtonElement>());
-  const [ornaments, setOrnaments] = useState<Ornament[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [status, setStatus] = useState("Loading community ornaments…");
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch("/api/ornaments", { signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Could not load ornaments");
-        return response.json() as Promise<{ ornaments: Ornament[] }>;
-      })
-      .then(({ ornaments: next }) => {
-        setOrnaments(next.filter((item) => item.slot >= 1 && item.slot <= 60));
-        setStatus(next.length ? `${next.length} community ornaments on the tree` : "The tree is ready for its first ornament");
-      })
-      .catch((error: unknown) => {
-        if ((error as { name?: string }).name !== "AbortError") {
-          setStatus("The tree is glowing; community ornaments are temporarily unavailable");
-        }
-      });
-    return () => controller.abort();
-  }, []);
+  const visibleOrnaments = useMemo(() => ornaments.filter((item) => item.slot >= 1 && item.slot <= 60), [ornaments]);
+  const status = visibleOrnaments.length
+    ? `${visibleOrnaments.length} community ornaments on the tree`
+    : "The tree is ready for its first ornament";
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -230,7 +213,7 @@ export function TreeExperience() {
     const loader = new Rhino3dmLoader();
     loader.setLibraryPath("/rhino3dm/");
 
-    for (const ornament of ornaments) {
+    for (const ornament of visibleOrnaments) {
       const anchor = TREE_ANCHORS[ornament.slot - 1];
       if (!anchor) continue;
       const anchorGroup = new Group();
@@ -308,7 +291,7 @@ export function TreeExperience() {
 
       const width = mount.clientWidth;
       const height = mount.clientHeight;
-      for (const ornament of ornaments) {
+      for (const ornament of visibleOrnaments) {
         const group = ornamentGroups.get(ornament.slot);
         const button = buttonRefs.current.get(ornament.id);
         if (!group || !button) continue;
@@ -333,7 +316,7 @@ export function TreeExperience() {
       renderer.dispose();
       renderer.domElement.remove();
     };
-  }, [ornaments]);
+  }, [visibleOrnaments]);
 
   return (
     <main className="relative min-h-[100svh] overflow-hidden bg-[#10271f] text-[#fff9ec]">
@@ -351,7 +334,7 @@ export function TreeExperience() {
       </header>
 
       <div className="pointer-events-none absolute inset-0 z-10">
-        {ornaments.map((ornament) => {
+        {visibleOrnaments.map((ornament) => {
           const active = activeId === ornament.id;
           return (
             <button
