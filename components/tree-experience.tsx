@@ -30,6 +30,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { Rhino3dmLoader } from "three/addons/loaders/3DMLoader.js";
 import { TREE_ANCHORS } from "@/lib/tree/anchors";
 import {
+  formatOrnamentCallout,
   normalizeVisibleGeometry,
   preserveSupportedMaterials,
 } from "@/lib/tree/model";
@@ -37,6 +38,7 @@ import {
 type Ornament = {
   id: string;
   initials: string;
+  message: string;
   slot: number;
   originalName: string;
   byteSize: number;
@@ -344,7 +346,7 @@ export function TreeExperience({ ornaments }: { ornaments: Ornament[] }) {
                 else buttonRefs.current.delete(ornament.id);
               }}
               type="button"
-              aria-label={`Ornament by ${ornament.initials}, slot ${ornament.slot}`}
+              aria-label={ornament.message ? `${ornament.message} — ${ornament.initials}, ornament slot ${ornament.slot}` : `Ornament by ${ornament.initials}, slot ${ornament.slot}`}
               aria-pressed={active}
               className="group pointer-events-auto absolute left-0 top-0 h-11 w-11 rounded-full outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-[#ffe19a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#153228]"
               onPointerEnter={() => setActiveId(ornament.id)}
@@ -353,8 +355,8 @@ export function TreeExperience({ ornaments }: { ornaments: Ornament[] }) {
               onBlur={() => setActiveId((current) => current === ornament.id ? null : current)}
               onClick={() => setActiveId((current) => current === ornament.id ? null : ornament.id)}
             >
-              <span className={`absolute left-1/2 top-[-1.8rem] -translate-x-1/2 whitespace-nowrap rounded-full border border-white/15 bg-[#10271f]/92 px-2.5 py-1 text-[10px] font-bold tracking-[0.16em] text-[#fff4cf] shadow-lg backdrop-blur transition ${active ? "scale-100 opacity-100" : "scale-90 opacity-0"}`}>
-                {ornament.initials}
+              <span className={`absolute left-1/2 top-[-1.8rem] w-max max-w-[min(16rem,70vw)] -translate-x-1/2 whitespace-normal rounded-xl border border-white/15 bg-[#10271f]/92 px-2.5 py-1 text-[10px] font-bold tracking-[0.16em] text-[#fff4cf] shadow-lg backdrop-blur transition ${active ? "scale-100 opacity-100" : "scale-90 opacity-0"}`}>
+                {formatOrnamentCallout(ornament.message, ornament.initials)}
               </span>
               <span className="sr-only">{ornament.originalName}</span>
             </button>

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formatBytes, hasRhinoHeader, validateInitialsClient, validateModelMetadata } from "../lib/ornaments/client.ts";
+import { formatBytes, formatMessageCount, hasRhinoHeader, validateInitialsClient, validateModelMetadata } from "../lib/ornaments/client.ts";
 import { MAX_MODEL_BYTES } from "../lib/ornaments/types.ts";
 
 test("client initials validation matches the public API", () => {
@@ -26,4 +26,9 @@ test("byte sizes are concise and readable", () => {
   assert.equal(formatBytes(512), "512 B");
   assert.equal(formatBytes(1536), "1.5 KB");
   assert.equal(formatBytes(2 * 1024 * 1024), "2.0 MB");
+});
+
+test("optional message counter starts blank and tracks the 80-character limit", () => {
+  assert.equal(formatMessageCount(""), "0/80");
+  assert.equal(formatMessageCount("x".repeat(80)), "80/80");
 });

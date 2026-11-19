@@ -38,6 +38,10 @@ export function preserveSupportedMaterials(root: Object3D, fallback: Material): 
   });
 }
 
+export function formatOrnamentCallout(message: string, initials: string): string {
+  return message ? `${message} — ${initials}` : initials;
+}
+
 export type NormalizedModel = {
   group: Group;
   sourceRadius: number;

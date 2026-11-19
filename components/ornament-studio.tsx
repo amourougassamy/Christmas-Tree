@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { formatBytes, validateInitialsClient, validateRhinoFile, type ClientValidationError } from "@/lib/ornaments/client";
+import { formatBytes, formatMessageCount, validateInitialsClient, validateRhinoFile, type ClientValidationError } from "@/lib/ornaments/client";
 import type { PublicOrnament } from "@/lib/ornaments/types";
 
 function apiError(text: string, fallback: string) {
@@ -20,7 +20,7 @@ function apiError(text: string, fallback: string) {
   } catch { return fallback; }
 }
 
-function upload(initials: string, file: File, onProgress: (value: number) => void) {
+function upload(initials: string, message: string, file: File, onProgress: (value: number) => void) {
   return new Promise<PublicOrnament>((resolve, reject) => {
     const request = new XMLHttpRequest();
     request.open("POST", "/api/ornaments");
@@ -38,6 +38,7 @@ function upload(initials: string, file: File, onProgress: (value: number) => voi
     };
     const body = new FormData();
     body.set("initials", initials);
+    body.set("message", message);
     body.set("model", file);
     request.send(body);
   });
@@ -45,6 +46,7 @@ function upload(initials: string, file: File, onProgress: (value: number) => voi
 
 export function OrnamentStudio({ onOrnamentsChange }: { onOrnamentsChange?: (ornaments: PublicOrnament[]) => void }) {
   const [initials, setInitials] = useState("");
+  const [message, setMessage] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [fieldError, setFieldError] = useState<ClientValidationError | null>(null);
   const [submitError, setSubmitError] = useState("");
@@ -59,8 +61,9 @@ export function OrnamentStudio({ onOrnamentsChange }: { onOrnamentsChange?: (orn
   const inputRef = useRef<HTMLInputElement>(null);
   const successRef = useRef<HTMLDivElement>(null);
 
-  const loadOrnaments = useCallback(async () => {
-    setLoadingList(true); setListError("");
+  const loadOrnaments = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoadingList(true);
+    setListError("");
     try {
       const response = await fetch("/api/ornaments", { cache: "no-store" });
       if (!response.ok) throw new Error(apiError(await response.text(), "Could not load the ornament list."));
@@ -69,13 +72,20 @@ export function OrnamentStudio({ onOrnamentsChange }: { onOrnamentsChange?: (orn
       onOrnamentsChange?.(next);
     } catch (error) {
       setListError(error instanceof Error ? error.message : "Could not load the ornament list.");
-    } finally { setLoadingList(false); }
+    } finally { if (showLoading) setLoadingList(false); }
   }, [onOrnamentsChange]);
 
   useEffect(() => {
     // Initial remote data load is intentionally tied to mounting this client view.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadOrnaments();
+    const refreshSharedState = () => void loadOrnaments(false);
+    const interval = window.setInterval(refreshSharedState, 15_000);
+    window.addEventListener("focus", refreshSharedState);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshSharedState);
+    };
   }, [loadOrnaments]);
   useEffect(() => { if (success) successRef.current?.focus(); }, [success]);
 
@@ -101,8 +111,8 @@ export function OrnamentStudio({ onOrnamentsChange }: { onOrnamentsChange?: (orn
     if (!file) { setFieldError({ field: "model", message: "Choose a Rhino .3dm file." }); return; }
     setUploading(true); setProgress(0);
     try {
-      const ornament = await upload(initials, file, setProgress);
-      setSuccess(ornament); setProgress(100); setFile(null); setInitials("");
+      const ornament = await upload(initials, message, file, setProgress);
+      setSuccess(ornament); setProgress(100); setFile(null); setInitials(""); setMessage("");
       if (inputRef.current) inputRef.current.value = "";
       await loadOrnaments();
     } catch (error) {
@@ -178,6 +188,16 @@ export function OrnamentStudio({ onOrnamentsChange }: { onOrnamentsChange?: (orn
                   aria-describedby={`initials-hint${fieldError?.field === "initials" ? " initials-error" : ""}`} aria-invalid={fieldError?.field === "initials" || undefined}
                   className="mt-4 h-14 w-full rounded-xl border border-[#9eaea7] px-4 text-lg font-bold uppercase tracking-[.16em] outline-none placeholder:font-normal placeholder:normal-case placeholder:tracking-normal placeholder:text-[#98a49f] focus:border-[#174b3a] focus:ring-4 focus:ring-[#174b3a]/10" />
                 {fieldError?.field === "initials" && <p id="initials-error" role="alert" className="mt-2 flex items-center gap-2 text-sm font-medium text-[#a6382d]"><CircleAlert aria-hidden="true" className="size-4" />{fieldError.message}</p>}
+                <div className="mt-5 flex items-end justify-between gap-3">
+                  <label htmlFor="message" className="font-semibold">Message <span className="font-normal text-[#718078]">(optional)</span></label>
+                  <span id="message-count" className="text-xs tabular-nums text-[#718078]">{formatMessageCount(message)}</span>
+                </div>
+                <textarea id="message" value={message} maxLength={80} rows={3} disabled={uploading}
+                  onChange={(event) => setMessage(event.target.value)}
+                  aria-describedby="message-hint message-count"
+                  placeholder="Share a holiday wish"
+                  className="mt-2 w-full resize-none rounded-xl border border-[#9eaea7] px-4 py-3 text-base leading-6 outline-none placeholder:text-[#98a49f] focus:border-[#174b3a] focus:ring-4 focus:ring-[#174b3a]/10" />
+                <p id="message-hint" className="mt-1 text-xs text-[#718078]">Shown with your initials when visitors select the ornament.</p>
               </div>
             </div>
 

@@ -1,4 +1,4 @@
-import { MAX_MODEL_BYTES } from "./types.ts";
+import { MAX_MESSAGE_LENGTH, MAX_MODEL_BYTES } from "./types.ts";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -22,6 +22,18 @@ export function validateInitials(value: unknown): string {
   return value;
 }
 
+export function validateMessage(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value !== "string") {
+    throw new ApiError(400, "INVALID_MESSAGE", "Message must be text.");
+  }
+  const message = value.trim();
+  if (message.length > MAX_MESSAGE_LENGTH) {
+    throw new ApiError(400, "INVALID_MESSAGE", "Message cannot exceed 80 characters.");
+  }
+  return message;
+}
+
 export function validateModel(file: unknown): asserts file is File {
   if (!(file instanceof File)) {
     throw new ApiError(400, "MODEL_REQUIRED", "A model file is required.");
@@ -35,4 +47,13 @@ export function validateModel(file: unknown): asserts file is File {
   if (file.size > MAX_MODEL_BYTES) {
     throw new ApiError(413, "MODEL_TOO_LARGE", "The model file cannot exceed 10 MiB.");
   }
+}
+
+export async function readValidatedModel(file: File): Promise<ArrayBuffer> {
+  const bytes = await file.arrayBuffer();
+  const header = new TextDecoder("ascii").decode(bytes.slice(0, 32));
+  if (!header.startsWith("3D Geometry File Format")) {
+    throw new ApiError(415, "INVALID_MODEL_CONTENT", "The file is not a valid Rhino 3DM model.");
+  }
+  return bytes;
 }

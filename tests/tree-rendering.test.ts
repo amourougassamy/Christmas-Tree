@@ -10,6 +10,7 @@ import {
 } from "three";
 import { createTreeAnchors, TREE_ANCHORS } from "../lib/tree/anchors.ts";
 import {
+  formatOrnamentCallout,
   isSupportedMaterial,
   normalizeVisibleGeometry,
   preserveSupportedMaterials,
@@ -48,4 +49,9 @@ test("supported materials survive while custom shaders receive a fallback", () =
   assert.equal(first.material, supported);
   assert.ok(isSupportedMaterial(second.material as MeshBasicMaterial));
   assert.notEqual(second.material, custom);
+});
+
+test("ornament callouts show participant text only when supplied", () => {
+  assert.equal(formatOrnamentCallout("Happy holidays", "AM1"), "Happy holidays — AM1");
+  assert.equal(formatOrnamentCallout("", "AM1"), "AM1");
 });

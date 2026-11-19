@@ -1,5 +1,5 @@
 import type { ModelStore, OrnamentRecord, OrnamentRepository, PublicOrnament, StoredModel } from "./types.ts";
-import { ApiError, validateInitials, validateModel } from "./validation.ts";
+import { ApiError, readValidatedModel, validateInitials, validateMessage, validateModel } from "./validation.ts";
 
 export class OrnamentService {
   private readonly repository: OrnamentRepository;
@@ -19,10 +19,12 @@ export class OrnamentService {
     this.newId = newId;
   }
 
-  async upload(initialsValue: unknown, modelValue: unknown): Promise<PublicOrnament> {
+  async upload(initialsValue: unknown, messageValue: unknown, modelValue: unknown): Promise<PublicOrnament> {
     const initials = validateInitials(initialsValue);
+    const message = validateMessage(messageValue);
     validateModel(modelValue);
     const model = modelValue;
+    const modelBytes = await readValidatedModel(model);
     const id = this.newId();
     const objectKey = `ornaments/${id}.3dm`;
     const createdAt = this.now().toISOString();
@@ -30,6 +32,7 @@ export class OrnamentService {
     const record: OrnamentRecord = {
       id,
       initials,
+      message,
       slot,
       objectKey,
       originalName: model.name,
@@ -39,7 +42,7 @@ export class OrnamentService {
       deletedAt: null,
     };
 
-    await this.models.put(objectKey, await model.arrayBuffer(), { id, initials });
+    await this.models.put(objectKey, modelBytes, { id, initials });
     try {
       await this.repository.archiveActiveAndInsert(record);
     } catch (error) {
@@ -69,6 +72,15 @@ export class OrnamentService {
 }
 
 function toPublic(record: OrnamentRecord): PublicOrnament {
-  const { objectKey: _objectKey, deletedAt: _deletedAt, ...publicRecord } = record;
-  return { ...publicRecord, modelUrl: `/api/ornaments/${encodeURIComponent(record.id)}/model` };
+  return {
+    id: record.id,
+    initials: record.initials,
+    message: record.message,
+    slot: record.slot,
+    originalName: record.originalName,
+    byteSize: record.byteSize,
+    createdAt: record.createdAt,
+    archivedAt: record.archivedAt,
+    modelUrl: `/api/ornaments/${encodeURIComponent(record.id)}/model`,
+  };
 }
