@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AmbientLight,
+  BoxGeometry,
   BufferAttribute,
   BufferGeometry,
   Color,
@@ -32,6 +33,7 @@ import { TREE_ANCHORS } from "@/lib/tree/anchors";
 import {
   formatOrnamentCallout,
   normalizeVisibleGeometry,
+  orientRhinoModel,
   preserveSupportedMaterials,
 } from "@/lib/tree/model";
 
@@ -138,6 +140,32 @@ function addEvergreen(root: Group) {
   }
 }
 
+function addWrappedGifts(root: Group) {
+  const gifts = [
+    { position: [-1.35, -4.05, 0.25], size: [1.05, 0.72, 0.82], color: "#b94736", ribbon: "#f1cf72", rotation: -0.12 },
+    { position: [0.15, -4.17, 0.55], size: [0.92, 0.5, 0.72], color: "#e6d7ad", ribbon: "#2f7055", rotation: 0.16 },
+    { position: [1.35, -4.08, 0.05], size: [0.76, 0.68, 0.68], color: "#2f7055", ribbon: "#e8c766", rotation: -0.08 },
+    { position: [0.8, -4.28, 1.15], size: [1.1, 0.42, 0.7], color: "#c98b72", ribbon: "#fff0c4", rotation: 0.24 },
+  ] as const;
+
+  for (const gift of gifts) {
+    const group = new Group();
+    group.position.set(...gift.position);
+    group.rotation.y = gift.rotation;
+
+    const [width, height, depth] = gift.size;
+    const wrapping = new MeshStandardMaterial({ color: gift.color, roughness: 0.72 });
+    const ribbon = new MeshStandardMaterial({ color: gift.ribbon, roughness: 0.48, metalness: 0.08 });
+    const box = new Mesh(new BoxGeometry(width, height, depth), wrapping);
+    const verticalRibbon = new Mesh(new BoxGeometry(width * 0.16, height + 0.018, depth + 0.025), ribbon);
+    const crossRibbon = new Mesh(new BoxGeometry(width + 0.025, height + 0.02, depth * 0.16), ribbon);
+    box.castShadow = verticalRibbon.castShadow = crossRibbon.castShadow = true;
+    box.receiveShadow = true;
+    group.add(box, verticalRibbon, crossRibbon);
+    root.add(group);
+  }
+}
+
 function disposeObject(root: Object3D) {
   root.traverse((child) => {
     if (!(child instanceof Mesh)) return;
@@ -202,6 +230,7 @@ export function TreeExperience({ ornaments }: { ornaments: Ornament[] }) {
     tree.position.y = -0.25;
     scene.add(tree);
     addEvergreen(tree);
+    addWrappedGifts(tree);
 
     const snow = createSnow();
     scene.add(snow);
@@ -235,7 +264,7 @@ export function TreeExperience({ ornaments }: { ornaments: Ornament[] }) {
           metalness: 0.08,
         }),
       );
-      fallback.position.y = 0.25;
+      fallback.position.y = -0.25;
       fallback.castShadow = true;
       anchorGroup.add(fallback);
 
@@ -247,6 +276,7 @@ export function TreeExperience({ ornaments }: { ornaments: Ornament[] }) {
             return;
           }
           preserveSupportedMaterials(loaded, fallbackMaterial);
+          orientRhinoModel(loaded);
           const normalized = normalizeVisibleGeometry(loaded);
           if (!normalized) {
             disposeObject(loaded);

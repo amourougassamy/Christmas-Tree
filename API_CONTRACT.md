@@ -4,11 +4,11 @@ All endpoints are public and unauthenticated. Successful JSON uses `Content-Type
 
 ## `POST /api/ornaments`
 
-Send `multipart/form-data` with `initials`, optional `message`, and `model` fields.
+Send `multipart/form-data` with `initials`, optional `message`, and `model` fields. The legacy `initials` field name stores the participant's display name.
 
-- `initials`: exactly 1-4 uppercase ASCII letters (`^[A-Z]{1,4}$`).
+- `initials`: a display name containing 1-60 characters after trimming.
 - `message`: optional participant text. Whitespace is trimmed; empty is allowed; maximum 80 characters. No default message is stored.
-- `model`: a non-empty Rhino 3DM file whose filename ends in `.3dm` (case-insensitive), has the Rhino file header, and is no larger than 10 MiB (10,485,760 bytes).
+- `model`: a non-empty Rhino 3DM file whose filename ends in `.3dm` (case-insensitive), has the Rhino file header, and is no larger than 20 MiB (20,971,520 bytes).
 - Returns `201 { "ornament": Ornament }`.
 - Validation errors: `400 INVALID_INITIALS`, `400 INVALID_MESSAGE`, `400 MODEL_REQUIRED`, `400 EMPTY_MODEL`, `413 MODEL_TOO_LARGE`, or `415 INVALID_MODEL_TYPE`, or `415 INVALID_MODEL_CONTENT`.
 

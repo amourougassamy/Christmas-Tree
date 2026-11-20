@@ -3,11 +3,11 @@ import test from "node:test";
 import { formatBytes, formatMessageCount, hasRhinoHeader, validateInitialsClient, validateModelMetadata } from "../lib/ornaments/client.ts";
 import { MAX_MODEL_BYTES } from "../lib/ornaments/types.ts";
 
-test("client initials validation matches the public API", () => {
-  assert.equal(validateInitialsClient("JOY"), null);
+test("client name validation accepts full names", () => {
+  assert.equal(validateInitialsClient("Jordan Lee"), null);
   assert.equal(validateInitialsClient("A"), null);
-  assert.equal(validateInitialsClient("joy")?.field, "initials");
-  assert.equal(validateInitialsClient("ABCDE")?.field, "initials");
+  assert.equal(validateInitialsClient("  ")?.field, "initials");
+  assert.equal(validateInitialsClient("x".repeat(61))?.field, "initials");
 });
 
 test("client model metadata rejects invalid files", () => {

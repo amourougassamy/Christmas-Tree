@@ -1,4 +1,4 @@
-import { MAX_MODEL_BYTES } from "./types.ts";
+import { MAX_MODEL_BYTES, MAX_NAME_LENGTH } from "./types.ts";
 
 export const RHINO_HEADER = "3D Geometry File Format";
 
@@ -8,8 +8,9 @@ export type ClientValidationError = {
 };
 
 export function validateInitialsClient(value: string): ClientValidationError | null {
-  if (!/^[A-Z]{1,4}$/.test(value)) {
-    return { field: "initials", message: "Enter 1-4 letters (A-Z)." };
+  const name = value.trim();
+  if (!name || name.length > MAX_NAME_LENGTH || /[\u0000-\u001f\u007f]/.test(name)) {
+    return { field: "initials", message: "Enter a name between 1 and 60 characters." };
   }
   return null;
 }
@@ -22,7 +23,7 @@ export function validateModelMetadata(file: Pick<File, "name" | "size">): Client
     return { field: "model", message: "That file is empty. Export it from Rhino again." };
   }
   if (file.size > MAX_MODEL_BYTES) {
-    return { field: "model", message: "That file is larger than 10 MiB." };
+    return { field: "model", message: "That file is larger than 20 MiB." };
   }
   return null;
 }

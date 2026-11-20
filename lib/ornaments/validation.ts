@@ -1,4 +1,4 @@
-import { MAX_MESSAGE_LENGTH, MAX_MODEL_BYTES } from "./types.ts";
+import { MAX_MESSAGE_LENGTH, MAX_MODEL_BYTES, MAX_NAME_LENGTH } from "./types.ts";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -16,10 +16,14 @@ export class ApiError extends Error {
 }
 
 export function validateInitials(value: unknown): string {
-  if (typeof value !== "string" || !/^[A-Z]{1,4}$/.test(value)) {
-    throw new ApiError(400, "INVALID_INITIALS", "Initials must be 1-4 uppercase A-Z letters.");
+  if (typeof value !== "string") {
+    throw new ApiError(400, "INVALID_INITIALS", "Name must be text.");
   }
-  return value;
+  const name = value.trim().replace(/\s+/g, " ");
+  if (!name || name.length > MAX_NAME_LENGTH || /[\u0000-\u001f\u007f]/.test(name)) {
+    throw new ApiError(400, "INVALID_INITIALS", "Enter a name between 1 and 60 characters.");
+  }
+  return name;
 }
 
 export function validateMessage(value: unknown): string {
@@ -45,7 +49,7 @@ export function validateModel(file: unknown): asserts file is File {
     throw new ApiError(400, "EMPTY_MODEL", "The model file cannot be empty.");
   }
   if (file.size > MAX_MODEL_BYTES) {
-    throw new ApiError(413, "MODEL_TOO_LARGE", "The model file cannot exceed 10 MiB.");
+    throw new ApiError(413, "MODEL_TOO_LARGE", "The model file cannot exceed 20 MiB.");
   }
 }
 
