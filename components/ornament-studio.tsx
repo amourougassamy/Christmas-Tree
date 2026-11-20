@@ -153,14 +153,14 @@ export function OrnamentStudio({ onOrnamentsChange }: { onOrnamentsChange?: (orn
         <div className="mx-auto max-w-3xl text-center">
           <p className="text-xs font-bold uppercase tracking-[.2em] text-[#a6382d]">A collaborative Christmas tree</p>
           <h1 className="mt-4 font-serif text-4xl font-bold tracking-tight text-[#133d30] sm:text-6xl">Make something merry.<br /><span className="italic text-[#bd3d30]">Hang it on the tree.</span></h1>
-          <p className="mx-auto mt-6 max-w-2xl text-base leading-7 text-[#526b61] sm:text-lg">Upload a Rhino ornament and add your initials. Your model joins the shared tree for everyone to enjoy.</p>
+          <p className="mx-auto mt-6 max-w-2xl text-base leading-7 text-[#526b61] sm:text-lg">Upload a Rhino ornament and add your name. Your model joins the shared tree for everyone to enjoy.</p>
         </div>
 
         <div className="mx-auto mt-10 grid max-w-5xl gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(260px,.75fr)] lg:items-start">
           <form onSubmit={handleSubmit} className="rounded-3xl border border-[#18372d]/10 bg-white/95 p-5 shadow-[0_24px_60px_rgba(23,75,58,.1)] sm:p-8">
             <div className="flex gap-4">
               <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#174b3a] font-bold text-[#f5d77e]">1</span>
-              <div><h2 className="font-serif text-2xl font-bold">Choose your ornament</h2><p className="mt-1 text-sm text-[#687b73]">Rhino 3DM - 10 MiB maximum</p></div>
+              <div><h2 className="font-serif text-2xl font-bold">Choose your ornament</h2><p className="mt-1 text-sm text-[#687b73]">Rhino 3DM - 20 MiB maximum</p></div>
             </div>
 
             <div
@@ -181,12 +181,12 @@ export function OrnamentStudio({ onOrnamentsChange }: { onOrnamentsChange?: (orn
             <div className="mt-7 flex gap-4 border-t border-[#18372d]/10 pt-7">
               <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#174b3a] font-bold text-[#f5d77e]">2</span>
               <div className="min-w-0 flex-1">
-                <label htmlFor="initials" className="font-serif text-2xl font-bold">Add your initials</label>
-                <p id="initials-hint" className="mt-1 text-sm text-[#687b73]">Up to 4 letters, shown beside your ornament</p>
-                <input id="initials" value={initials} maxLength={4} autoComplete="off" placeholder="E.g. JOY" disabled={uploading}
-                  onChange={(event) => { setInitials(event.target.value.replace(/[^a-z]/gi, "").toUpperCase().slice(0, 4)); if (fieldError?.field === "initials") setFieldError(null); }}
+                <label htmlFor="initials" className="font-serif text-2xl font-bold">Add your name</label>
+                <p id="initials-hint" className="mt-1 text-sm text-[#687b73]">Your full name, shown with your ornament</p>
+                <input id="initials" value={initials} maxLength={60} autoComplete="name" placeholder="E.g. Jordan Lee" disabled={uploading}
+                  onChange={(event) => { setInitials(event.target.value); if (fieldError?.field === "initials") setFieldError(null); }}
                   aria-describedby={`initials-hint${fieldError?.field === "initials" ? " initials-error" : ""}`} aria-invalid={fieldError?.field === "initials" || undefined}
-                  className="mt-4 h-14 w-full rounded-xl border border-[#9eaea7] px-4 text-lg font-bold uppercase tracking-[.16em] outline-none placeholder:font-normal placeholder:normal-case placeholder:tracking-normal placeholder:text-[#98a49f] focus:border-[#174b3a] focus:ring-4 focus:ring-[#174b3a]/10" />
+                  className="mt-4 h-14 w-full rounded-xl border border-[#9eaea7] px-4 text-lg font-semibold outline-none placeholder:font-normal placeholder:text-[#98a49f] focus:border-[#174b3a] focus:ring-4 focus:ring-[#174b3a]/10" />
                 {fieldError?.field === "initials" && <p id="initials-error" role="alert" className="mt-2 flex items-center gap-2 text-sm font-medium text-[#a6382d]"><CircleAlert aria-hidden="true" className="size-4" />{fieldError.message}</p>}
                 <div className="mt-5 flex items-end justify-between gap-3">
                   <label htmlFor="message" className="font-semibold">Message <span className="font-normal text-[#718078]">(optional)</span></label>
@@ -197,7 +197,7 @@ export function OrnamentStudio({ onOrnamentsChange }: { onOrnamentsChange?: (orn
                   aria-describedby="message-hint message-count"
                   placeholder="Share a holiday wish"
                   className="mt-2 w-full resize-none rounded-xl border border-[#9eaea7] px-4 py-3 text-base leading-6 outline-none placeholder:text-[#98a49f] focus:border-[#174b3a] focus:ring-4 focus:ring-[#174b3a]/10" />
-                <p id="message-hint" className="mt-1 text-xs text-[#718078]">Shown with your initials when visitors select the ornament.</p>
+                <p id="message-hint" className="mt-1 text-xs text-[#718078]">Shown with your name when visitors select the ornament.</p>
               </div>
             </div>
 
@@ -213,7 +213,7 @@ export function OrnamentStudio({ onOrnamentsChange }: { onOrnamentsChange?: (orn
             <ol className="mt-6 space-y-5 text-sm leading-6 text-[#6e6040]">
               <li className="flex gap-3"><span className="font-bold text-[#ad382d]">01</span><span>In Rhino, keep the ornament near the origin and use millimeters.</span></li>
               <li className="flex gap-3"><span className="font-bold text-[#ad382d]">02</span><span>Run <code className="rounded bg-[#efe6cd] px-1.5 py-0.5 text-xs font-bold">SelAll</code>, then <code className="rounded bg-[#efe6cd] px-1.5 py-0.5 text-xs font-bold">Export</code> as Rhino 3DM.</span></li>
-              <li className="flex gap-3"><span className="font-bold text-[#ad382d]">03</span><span>With Rhino MCP, ask: &ldquo;Export the ornament only as a .3dm under 10 MiB.&rdquo;</span></li>
+              <li className="flex gap-3"><span className="font-bold text-[#ad382d]">03</span><span>With Rhino MCP, ask: &ldquo;Export the ornament only as a .3dm under 20 MiB.&rdquo;</span></li>
             </ol>
             <details className="group mt-6 border-t border-[#8c6d29]/15 pt-4 text-sm text-[#6e6040]"><summary className="flex cursor-pointer list-none items-center justify-between rounded font-bold text-[#563f16] outline-none focus-visible:ring-2 focus-visible:ring-[#bd3d30]">Before you upload <ChevronDown aria-hidden="true" className="size-4 transition group-open:rotate-180" /></summary><p className="mt-3 leading-6">Remove construction geometry and unused layers so the ornament stays lightweight.</p></details>
           </aside>
@@ -233,8 +233,8 @@ export function OrnamentStudio({ onOrnamentsChange }: { onOrnamentsChange?: (orn
           : ornaments.length === 0 ? <div className="mt-8 rounded-2xl border border-dashed border-[#174b3a]/25 bg-white/60 p-8 text-center"><Gift aria-hidden="true" className="mx-auto text-[#5c776b]" /><p className="mt-3 font-serif text-xl font-bold">The tree is waiting for its first ornament.</p></div>
           : <ul className="mt-8 grid gap-3 sm:grid-cols-2" aria-label={`${ornaments.length} visible ornaments`}>
               {ornaments.map((ornament) => <li key={ornament.id} className="flex items-center gap-4 rounded-2xl border border-[#18372d]/10 bg-white/85 p-4 shadow-sm">
-                <span className="grid size-12 shrink-0 place-items-center rounded-full bg-[#174b3a] font-serif text-sm font-bold tracking-wider text-[#f7df96]" aria-hidden="true">{ornament.initials}</span>
-                <div className="min-w-0 flex-1"><p className="truncate font-semibold">{ornament.originalName}</p><p className="mt-0.5 text-xs text-[#697c73]">Spot {ornament.slot} - {formatBytes(ornament.byteSize)}</p></div>
+                <span className="grid size-12 shrink-0 place-items-center rounded-full bg-[#174b3a] font-serif text-lg font-bold text-[#f7df96]" aria-hidden="true">{ornament.initials.trim().charAt(0).toUpperCase()}</span>
+                <div className="min-w-0 flex-1"><p className="truncate font-semibold">{ornament.initials}</p><p className="truncate text-xs text-[#697c73]">{ornament.originalName}</p><p className="mt-0.5 text-xs text-[#697c73]">Spot {ornament.slot} - {formatBytes(ornament.byteSize)}</p></div>
                 <AlertDialog>
                   <AlertDialogTrigger asChild><Button type="button" variant="ghost" size="icon" className="text-[#9b382f] hover:bg-[#fff0ed]" aria-label={`Remove ${ornament.originalName} by ${ornament.initials}`} disabled={deletingId === ornament.id}>{deletingId === ornament.id ? <LoaderCircle aria-hidden="true" className="animate-spin" /> : <Trash2 aria-hidden="true" />}</Button></AlertDialogTrigger>
                   <AlertDialogContent className="border-[#18372d]/15 bg-[#fffdf9]"><AlertDialogHeader><AlertDialogTitle>Remove this ornament?</AlertDialogTitle><AlertDialogDescription><strong className="text-[#18372d]">{ornament.originalName}</strong> by {ornament.initials} will be removed from spot {ornament.slot}. This cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Keep it</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => void deleteOrnament(ornament.id)}>Remove ornament</AlertDialogAction></AlertDialogFooter></AlertDialogContent>

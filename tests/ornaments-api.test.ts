@@ -136,10 +136,10 @@ test("60-slot allocator archives the displaced record and delete restores it", a
   assert.equal(restored?.archivedAt, null);
 });
 
-test("upload validation enforces initials, extension, and 10 MiB limit", async () => {
+test("upload validation enforces name, extension, and 20 MiB limit", async () => {
   const cases = [
-    [uploadRequest("ab"), 400, "INVALID_INITIALS"],
-    [uploadRequest("ABCDE"), 400, "INVALID_INITIALS"],
+    [uploadRequest(" "), 400, "INVALID_INITIALS"],
+    [uploadRequest("x".repeat(61)), 400, "INVALID_INITIALS"],
     [uploadRequest("AB", "star.obj"), 415, "INVALID_MODEL_TYPE"],
     [uploadRequest("AB", "star.3dm", new Uint8Array(MAX_MODEL_BYTES + 1)), 413, "MODEL_TOO_LARGE"],
     [uploadRequest("AB", "star.3dm", new Uint8Array([1]), "x".repeat(81)), 400, "INVALID_MESSAGE"],

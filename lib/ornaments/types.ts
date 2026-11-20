@@ -1,5 +1,6 @@
 export const SLOT_COUNT = 60;
-export const MAX_MODEL_BYTES = 10 * 1024 * 1024;
+export const MAX_MODEL_BYTES = 20 * 1024 * 1024;
+export const MAX_NAME_LENGTH = 60;
 export const MAX_MESSAGE_LENGTH = 80;
 
 export interface OrnamentRecord {

@@ -80,7 +80,15 @@ export function normalizeVisibleGeometry(
   const center = normalizedBox.getCenter(new Vector3());
   source.position.x -= center.x;
   source.position.z -= center.z;
-  source.position.y -= normalizedBox.min.y;
+  // Put the highest visible point at the branch attachment so the ornament
+  // extends downward instead of standing on the branch.
+  source.position.y -= normalizedBox.max.y;
 
   return { group, sourceRadius: sphere.radius, scale };
+}
+
+/** Convert Rhino's Z-up model coordinates to Three.js' Y-up scene. */
+export function orientRhinoModel(source: Object3D): void {
+  source.rotation.x = -Math.PI / 2;
+  source.updateMatrixWorld(true);
 }
