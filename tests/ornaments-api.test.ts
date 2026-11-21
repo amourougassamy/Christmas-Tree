@@ -1,21 +1,26 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { deleteResponse, listResponse, modelResponse, uploadResponse } from "../lib/ornaments/http.ts";
+import { deleteResponse, listResponse, modelResponse, sourceResponse, uploadResponse } from "../lib/ornaments/http.ts";
 import { OrnamentService } from "../lib/ornaments/service.ts";
-import { MAX_MODEL_BYTES, SLOT_COUNT } from "../lib/ornaments/types.ts";
+import { MAX_MODEL_BYTES, MAX_PREVIEW_BYTES, SLOT_COUNT } from "../lib/ornaments/types.ts";
 import type { ModelStore, OrnamentRecord, OrnamentRepository, StoredModel } from "../lib/ornaments/types.ts";
+import { rawGlb } from "./convert-helpers.ts";
 
 class MemoryRepository implements OrnamentRepository {
   records: OrnamentRecord[] = [];
   nextSlot = 1;
+  claims = 0;
+  failInsert = false;
 
   async claimNextSlot() {
+    this.claims += 1;
     const slot = this.nextSlot;
     this.nextSlot = this.nextSlot === SLOT_COUNT ? 1 : this.nextSlot + 1;
     return slot;
   }
 
   async archiveActiveAndInsert(record: OrnamentRecord) {
+    if (this.failInsert) throw new Error("database unavailable");
     for (const item of this.records) {
       if (item.slot === record.slot && item.archivedAt === null && item.deletedAt === null) {
         item.archivedAt = record.createdAt;
@@ -85,23 +90,42 @@ function fixture() {
 }
 
 const VALID_RHINO_BYTES = new TextEncoder().encode("3D Geometry File Format       80 fixture");
+const VALID_GLB = await rawGlb();
 
-function uploadRequest(initials: string, name = "star.3dm", bytes = VALID_RHINO_BYTES, message = "") {
+function uploadRequest(
+  initials: string,
+  name = "star.3dm",
+  bytes: Uint8Array = VALID_RHINO_BYTES,
+  message = "",
+  preview: Uint8Array | null = VALID_GLB,
+) {
   const form = new FormData();
   form.set("initials", initials);
   form.set("message", message);
-  form.set("model", new File([bytes], name));
+  form.set("model", new File([new Uint8Array(bytes)], name));
+  if (preview) form.set("preview", new File([new Uint8Array(preview)], name.replace(/\.3dm$/i, ".glb")));
   return new Request("https://tree.test/api/ornaments", { method: "POST", body: form });
 }
 
-test("public upload, list, and model stream contract", async () => {
-  const { service } = fixture();
+async function errorCode(response: Response) {
+  return ((await response.json()) as { error: { code: string } }).error.code;
+}
+
+test("public upload, list, preview, and source stream contract", async () => {
+  const { service, store } = fixture();
   const created = await uploadResponse(uploadRequest("AB", "star.3dm", VALID_RHINO_BYTES, "  Happy holidays  "), service);
   assert.equal(created.status, 201);
-  const payload = await created.json() as { ornament: { id: string; slot: number; message: string; modelUrl: string } };
+  const payload = await created.json() as {
+    ornament: { id: string; slot: number; message: string; modelUrl: string; sourceUrl: string; byteSize: number; previewByteSize: number };
+  };
   assert.equal(payload.ornament.slot, 1);
   assert.equal(payload.ornament.message, "Happy holidays");
   assert.equal(payload.ornament.modelUrl, "/api/ornaments/ornament-1/model");
+  assert.equal(payload.ornament.sourceUrl, "/api/ornaments/ornament-1/source");
+  assert.equal(payload.ornament.byteSize, VALID_RHINO_BYTES.length);
+  assert.equal(payload.ornament.previewByteSize, VALID_GLB.length);
+  assert.deepEqual([...store.objects.keys()].sort(), ["ornaments/ornament-1.3dm", "ornaments/ornament-1.glb"]);
+  assert.ok(!("objectKey" in payload.ornament) && !("previewKey" in payload.ornament));
 
   const listed = await listResponse(new Request("https://tree.test/api/ornaments"), service);
   assert.equal(listed.status, 200);
@@ -109,8 +133,63 @@ test("public upload, list, and model stream contract", async () => {
 
   const model = await modelResponse(payload.ornament.id, service);
   assert.equal(model.status, 200);
-  assert.equal(model.headers.get("content-length"), String(VALID_RHINO_BYTES.length));
-  assert.deepEqual(new Uint8Array(await model.arrayBuffer()), VALID_RHINO_BYTES);
+  assert.equal(model.headers.get("content-type"), "model/gltf-binary");
+  assert.equal(model.headers.get("content-length"), String(VALID_GLB.length));
+  assert.equal(model.headers.get("cache-control"), "public, max-age=31536000, immutable");
+  assert.equal(model.headers.get("etag"), `"${VALID_GLB.length}"`);
+  assert.deepEqual(new Uint8Array(await model.arrayBuffer()), VALID_GLB);
+
+  const source = await sourceResponse(payload.ornament.id, service);
+  assert.equal(source.status, 200);
+  assert.equal(source.headers.get("content-type"), "application/octet-stream");
+  assert.equal(source.headers.get("content-disposition"), 'inline; filename="star.3dm"');
+  assert.equal(source.headers.get("cache-control"), "public, max-age=31536000, immutable");
+  assert.equal(source.headers.get("content-length"), String(VALID_RHINO_BYTES.length));
+  assert.deepEqual(new Uint8Array(await source.arrayBuffer()), VALID_RHINO_BYTES);
+
+  assert.equal((await deleteResponse(payload.ornament.id, service)).status, 204);
+  assert.equal(store.objects.size, 0);
+  assert.equal(await errorCode(await modelResponse(payload.ornament.id, service)), "NOT_FOUND");
+  assert.equal(await errorCode(await sourceResponse(payload.ornament.id, service)), "NOT_FOUND");
+});
+
+test("missing stored files return MODEL_NOT_FOUND", async () => {
+  const { service, store } = fixture();
+  await uploadResponse(uploadRequest("AB"), service);
+  store.objects.clear();
+  for (const response of [await modelResponse("ornament-1", service), await sourceResponse("ornament-1", service)]) {
+    assert.equal(response.status, 404);
+    assert.equal(await errorCode(response), "MODEL_NOT_FOUND");
+  }
+});
+
+test("a database failure removes both stored files", async () => {
+  const { service, store, repository } = fixture();
+  repository.failInsert = true;
+  const response = await uploadResponse(uploadRequest("AB"), service);
+  assert.equal(response.status, 500);
+  assert.equal(store.objects.size, 0);
+  assert.equal(repository.records.length, 0);
+});
+
+test("preview problems are rejected before a slot is claimed", async () => {
+  const cases = [
+    [uploadRequest("AB", "star.3dm", VALID_RHINO_BYTES, "", null), 400, "PREVIEW_REQUIRED"],
+    [uploadRequest("AB", "star.3dm", VALID_RHINO_BYTES, "", new Uint8Array(0)), 400, "PREVIEW_REQUIRED"],
+    [uploadRequest("AB", "star.3dm", VALID_RHINO_BYTES, "", VALID_RHINO_BYTES), 415, "INVALID_PREVIEW"],
+    [uploadRequest("AB", "star.3dm", VALID_RHINO_BYTES, "", new Uint8Array(MAX_PREVIEW_BYTES + 1)), 413, "PREVIEW_TOO_LARGE"],
+    [uploadRequest("AB", "star.3dm", VALID_RHINO_BYTES, "", await rawGlb({ triangles: 20_000 })), 413, "PREVIEW_TOO_LARGE"],
+    [uploadRequest("AB", "star.3dm", VALID_RHINO_BYTES, "", await rawGlb({ texture: true })), 422, "PREVIEW_HAS_TEXTURES"],
+    [uploadRequest("AB", "star.3dm", VALID_RHINO_BYTES, "", await rawGlb({ sizeMetres: 0.1524 })), 422, "ORNAMENT_TOO_BIG"],
+  ] as const;
+  for (const [request, status, code] of cases) {
+    const { service, repository, store } = fixture();
+    const response = await uploadResponse(request, service);
+    assert.equal(response.status, status, code);
+    assert.equal(await errorCode(response), code);
+    assert.equal(repository.claims, 0, `${code} claimed a slot`);
+    assert.equal(store.objects.size, 0);
+  }
 });
 
 test("60-slot allocator archives the displaced record and delete restores it", async () => {
