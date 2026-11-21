@@ -56,9 +56,12 @@ type Ornament = {
 Shared between the browser converter (writer), the server validator, and the tree renderer (reader). Constants live in `lib/ornaments/types.ts`.
 
 - glTF 2.0 binary (`.glb`), at most `MAX_PREVIEW_BYTES` (512 KiB).
-- **Real-world size, one scale for every ornament.** Units are metres (glTF standard), converted from the Rhino file's model unit system. Rhino files with no unit system are treated as inches. Every ornament must fit within a 4" × 4" × 4" box (`MAX_ORNAMENT_INCHES`, 0.1016 m per side) with 5% tolerance (`ORNAMENT_SIZE_TOLERANCE`): each bounding-box side ≤ 0.10668 m. Nothing is rescaled to fit.
+- **Real-world size, one scale for every ornament.** Units are metres (glTF standard), converted from the Rhino file's model unit system. Rhino files with no unit system are treated as inches. Every ornament's rendered geometry (excluding the eyelet point) must fit within a 4" × 4" × 4" box (`MAX_ORNAMENT_INCHES`, 0.1016 m per side) with 5% tolerance (`ORNAMENT_SIZE_TOLERANCE`): each bounding-box side ≤ 0.10668 m. Nothing is rescaled to fit.
 - **Y-up.** Rhino's Z-up is rotated to Y-up.
-- **Hanging origin.** The origin is the hanging point: the bounding box is centred on X and Z, and its highest point sits at Y = 0, so the ornament extends downward (all Y ≤ 0).
+- **Hanging origin = eyelet.** Participants put a single point object on a Rhino layer named `eyelet` (matched case-insensitively, including as a sublayer's own name) where the ornament should hang from. The converter translates the model so that point is the origin (0, 0, 0). Point/curve objects on that layer are not rendered; meshes/surfaces on it (e.g. a modelled ring) are rendered like any other geometry.
+  - No eyelet layer, or no point on it → fallback: bounding box centred on X and Z with its highest point at Y = 0. More than one point → the highest one is used. The uploader's preview shows a warning in both cases.
+  - The glTF `asset.extras` records `{ "eyelet": "layer" | "fallback", "sizeInches": [x, y, z] }` (informational; the server does not trust it for limits).
+  - The tree places the origin exactly on a branch tip and lets the ornament hang below it.
 - Triangle meshes only (no lines or points), at most `MAX_PREVIEW_TRIANGLES` (8,000) triangles total, at most `MAX_PREVIEW_MATERIALS` (4) materials, one mesh primitive per material.
 - Materials are `KHR`-core PBR metallic-roughness with base colour factors only. **No textures or images.**
 - Allowed extensions: `EXT_meshopt_compression`, `KHR_mesh_quantization`. The reader registers the meshopt decoder.
