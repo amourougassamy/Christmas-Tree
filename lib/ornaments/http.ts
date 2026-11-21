@@ -8,7 +8,6 @@ export async function uploadResponse(request: Request, service: OrnamentService)
       form.get("initials"),
       form.get("message"),
       form.get("model"),
-      form.get("preview"),
     );
     return Response.json({ ornament }, { status: 201 });
   } catch (error) {
@@ -44,12 +43,12 @@ export async function modelResponse(id: string, service: OrnamentService): Promi
   }
 }
 
-/** Streams the original .3dm. */
+/** Streams the original upload, including legacy Rhino sources. */
 export async function sourceResponse(id: string, service: OrnamentService): Promise<Response> {
   try {
     const { record, model } = await service.source(id);
     const headers = new Headers({
-      "content-type": "application/octet-stream",
+      "content-type": record.originalName.toLowerCase().endsWith(".glb") ? "model/gltf-binary" : "application/octet-stream",
       "content-length": String(model.size),
       "content-disposition": `inline; filename="${safeFilename(record.originalName)}"`,
       "cache-control": IMMUTABLE_CACHE,
@@ -82,7 +81,7 @@ function errorResponse(error: unknown): Response {
 }
 
 function glbName(originalName: string): string {
-  return `${originalName.replace(/\.3dm$/i, "") || "ornament"}.glb`;
+  return `${originalName.replace(/\.(3dm|glb)$/i, "") || "ornament"}.glb`;
 }
 
 function safeFilename(name: string): string {

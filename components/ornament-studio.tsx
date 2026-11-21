@@ -1,7 +1,7 @@
 "use client";
 
 import { type DragEvent, type FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, CircleAlert, Gift, LoaderCircle, RefreshCw, Sparkles, Trash2, TriangleAlert, UploadCloud, Users, X } from "lucide-react";
+import { Check, CircleAlert, Gift, LoaderCircle, RefreshCw, Sparkles, Trash2, UploadCloud, Users, X } from "lucide-react";
 
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -10,9 +10,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import type { ConvertResult } from "@/lib/convert/types";
+import { GlbAgentPrompt } from "@/components/glb-agent-prompt";
+import type { PreparedGlb } from "@/lib/ornaments/prepare-glb";
+import { sizeInches } from "@/lib/ornaments/preview-rules";
 import {
-  formatBytes, formatCount, formatInches, formatMessageCount, previewFileName, validateInitialsClient, validateRhinoFile,
+  formatBytes, formatCount, formatInches, formatMessageCount, validateInitialsClient, validateGlbFile,
   type ClientValidationError,
 } from "@/lib/ornaments/client";
 import type { PublicOrnament } from "@/lib/ornaments/types";
@@ -27,10 +29,10 @@ function apiError(text: string, fallback: string) {
 type Conversion =
   | { status: "idle" }
   | { status: "preparing" }
-  | { status: "ready"; result: ConvertResult }
+  | { status: "ready"; result: PreparedGlb }
   | { status: "error"; message: string };
 
-function upload(initials: string, message: string, file: File, preview: Uint8Array, onProgress: (value: number) => void) {
+function upload(initials: string, message: string, file: File, onProgress: (value: number) => void) {
   return new Promise<PublicOrnament>((resolve, reject) => {
     const request = new XMLHttpRequest();
     request.open("POST", "/api/ornaments");
@@ -50,7 +52,6 @@ function upload(initials: string, message: string, file: File, preview: Uint8Arr
     body.set("initials", initials);
     body.set("message", message);
     body.set("model", file);
-    body.set("preview", new File([preview.slice()], previewFileName(file.name), { type: "model/gltf-binary" }));
     request.send(body);
   });
 }
@@ -71,19 +72,18 @@ function GlbPreview({ glb }: { glb: Uint8Array }) {
     return () => { cancelled = true; cleanup?.(); };
   }, [glb]);
   if (failed) return <div className="grid aspect-square w-full place-items-center rounded-xl bg-[#eef3f0] text-xs text-[#687b73]">Preview unavailable</div>;
-  return <canvas ref={canvasRef} aria-label="Preview of your converted ornament" className="aspect-square w-full rounded-xl bg-[radial-gradient(circle_at_50%_35%,#ffffff,#e4ece7)]" />;
+  return <canvas ref={canvasRef} aria-label="Preview of your ornament" className="aspect-square w-full rounded-xl bg-[radial-gradient(circle_at_50%_35%,#ffffff,#e4ece7)]" />;
 }
 
-function ConversionReport({ file, result }: { file: File; result: ConvertResult }) {
+function ConversionReport({ file, result }: { file: File; result: PreparedGlb }) {
   const { report } = result;
   return (
     <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-left text-sm">
-      <dt className="text-[#687b73]">Size</dt><dd className="font-semibold tabular-nums">{formatInches(report.sizeInches)}</dd>
-      <dt className="text-[#687b73]">Eyelet</dt>
-      <dd className={report.eyelet === "layer" ? "font-semibold text-[#2f7458]" : "font-semibold text-[#9a6a12]"}>{report.eyelet === "layer" ? "Found" : "Not found (hangs from top centre)"}</dd>
-      <dt className="text-[#687b73]">Triangles</dt><dd className="tabular-nums">{formatCount(report.sourceTriangles)} → {formatCount(report.triangles)}</dd>
-      <dt className="text-[#687b73]">File</dt><dd className="tabular-nums">.3dm {formatBytes(file.size)} → .glb {formatBytes(report.bytes)}</dd>
-      {report.unit.assumed && <><dt className="text-[#687b73]">Units</dt><dd>None set, treated as inches</dd></>}
+      <dt className="text-[#687b73]">Size</dt><dd className="font-semibold tabular-nums">{formatInches(sizeInches(report.sizeMetres))}</dd>
+      <dt className="text-[#687b73]">Hangs from</dt><dd>Top centre</dd>
+      <dt className="text-[#687b73]">Triangles</dt><dd className="tabular-nums">{formatCount(report.triangles)}</dd>
+      <dt className="text-[#687b73]">Materials</dt><dd>{report.materials}</dd>
+      <dt className="text-[#687b73]">File</dt><dd className="tabular-nums">GLB · {formatBytes(file.size)}</dd>
     </dl>
   );
 }
@@ -139,7 +139,7 @@ export function OrnamentStudio({ onOrnamentsChange }: { onOrnamentsChange?: (orn
     setSubmitError(""); setSuccess(null);
     if (!candidate) return;
     const token = ++conversionToken.current;
-    const error = await validateRhinoFile(candidate);
+    const error = await validateGlbFile(candidate);
     if (token !== conversionToken.current) return;
     if (error) {
       setFile(null); setFieldError(error); setConversion({ status: "idle" });
@@ -148,15 +148,15 @@ export function OrnamentStudio({ onOrnamentsChange }: { onOrnamentsChange?: (orn
     }
     setFile(candidate); setFieldError(null); setConversion({ status: "preparing" });
     try {
-      const { convertRhinoFile } = await import("@/lib/convert");
-      const result = await convertRhinoFile(candidate);
+      const { prepareGlb } = await import("@/lib/ornaments/prepare-glb");
+      const result = await prepareGlb(new Uint8Array(await candidate.arrayBuffer()));
       if (token === conversionToken.current) setConversion({ status: "ready", result });
     } catch (conversionError) {
       if (token !== conversionToken.current) return;
       console.error(conversionError);
-      const message = conversionError instanceof Error && conversionError.name === "ConvertError"
+      const message = conversionError instanceof Error
         ? conversionError.message
-        : "This model could not be prepared. Save it again from Rhino and retry.";
+        : "This GLB could not be checked. Ask your agent to export it again.";
       setConversion({ status: "error", message });
     }
   }
@@ -171,14 +171,14 @@ export function OrnamentStudio({ onOrnamentsChange }: { onOrnamentsChange?: (orn
     event.preventDefault(); setSubmitError(""); setSuccess(null);
     const initialsError = validateInitialsClient(initials);
     if (initialsError) { setFieldError(initialsError); return; }
-    if (!file) { setFieldError({ field: "model", message: "Choose a Rhino .3dm file." }); return; }
+    if (!file) { setFieldError({ field: "model", message: "Choose a .glb file." }); return; }
     if (conversion.status !== "ready") {
-      setSubmitError(conversion.status === "error" ? conversion.message : "Your ornament is still being prepared.");
+      setSubmitError(conversion.status === "error" ? conversion.message : "Your GLB is still being checked.");
       return;
     }
     setUploading(true); setProgress(0);
     try {
-      const ornament = await upload(initials, message, file, conversion.result.glb, setProgress);
+      const ornament = await upload(initials, message, file, setProgress);
       setSuccess(ornament); setProgress(100); setFile(null); setConversion({ status: "idle" }); setInitials(""); setMessage("");
       if (inputRef.current) inputRef.current.value = "";
       await loadOrnaments();
@@ -219,14 +219,14 @@ export function OrnamentStudio({ onOrnamentsChange }: { onOrnamentsChange?: (orn
         <div className="mx-auto max-w-3xl text-center">
           <p className="text-xs font-bold uppercase tracking-[.2em] text-[#a6382d]">A collaborative Christmas tree</p>
           <h1 className="mt-4 font-serif text-4xl font-bold tracking-tight text-[#133d30] sm:text-6xl">Make something merry.<br /><span className="italic text-[#bd3d30]">Hang it on the tree.</span></h1>
-          <p className="mx-auto mt-6 max-w-2xl text-base leading-7 text-[#526b61] sm:text-lg">Upload a Rhino ornament and add your name. Your model joins the shared tree for everyone to enjoy.</p>
+          <p className="mx-auto mt-6 max-w-2xl text-base leading-7 text-[#526b61] sm:text-lg">Upload a GLB ornament and add your name. Your model joins the shared tree for everyone to enjoy.</p>
         </div>
 
         <div className="mx-auto mt-10 grid max-w-5xl gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(260px,.75fr)] lg:items-start">
           <form onSubmit={handleSubmit} className="rounded-3xl border border-[#18372d]/10 bg-white/95 p-5 shadow-[0_24px_60px_rgba(23,75,58,.1)] sm:p-8">
             <div className="flex gap-4">
               <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#174b3a] font-bold text-[#f5d77e]">1</span>
-              <div><h2 className="font-serif text-2xl font-bold">Choose your ornament</h2><p className="mt-1 text-sm text-[#687b73]">Rhino 3DM - 20 MiB maximum</p></div>
+              <div><h2 className="font-serif text-2xl font-bold">Choose your ornament</h2><p className="mt-1 text-sm text-[#687b73]">GLB · 512 KiB maximum</p></div>
             </div>
 
             <div
@@ -234,29 +234,28 @@ export function OrnamentStudio({ onOrnamentsChange }: { onOrnamentsChange?: (orn
               onDragEnter={(event) => { event.preventDefault(); setDragging(true); }} onDragOver={(event) => event.preventDefault()}
               onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragging(false); }} onDrop={drop}
             >
-              <input ref={inputRef} id="model" type="file" accept=".3dm" className="sr-only" disabled={uploading} onChange={(event) => void chooseFile(event.target.files?.[0] ?? null)} aria-describedby="model-hint model-error" aria-invalid={fieldError?.field === "model" || undefined} />
+              <input ref={inputRef} id="model" type="file" accept=".glb,model/gltf-binary" className="sr-only" disabled={uploading} onChange={(event) => void chooseFile(event.target.files?.[0] ?? null)} aria-describedby="model-hint model-error" aria-invalid={fieldError?.field === "model" || undefined} />
               {file ? <div className="w-full" aria-live="polite">
                 {conversion.status === "ready" ? <div className="grid items-center gap-4 sm:grid-cols-[minmax(0,180px)_1fr]">
                   <GlbPreview glb={conversion.result.glb} />
                   <div className="min-w-0 text-left">
                     <p className="truncate font-bold">{file.name}</p>
                     <div className="mt-2"><ConversionReport file={file} result={conversion.result} /></div>
-                    {conversion.result.report.eyeletWarning && <p className="mt-3 flex gap-2 rounded-lg bg-[#fff7e6] p-2.5 text-xs leading-5 text-[#7a5410]"><TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />{conversion.result.report.eyeletWarning}</p>}
                   </div>
                 </div> : <>
                   <span className={`mx-auto grid size-14 place-items-center rounded-full ${conversion.status === "error" ? "bg-[#fbe6e2] text-[#a6382d]" : "bg-[#e5f0ea] text-[#174b3a]"}`}>
                     {conversion.status === "error" ? <CircleAlert aria-hidden="true" /> : conversion.status === "preparing" ? <LoaderCircle aria-hidden="true" className="animate-spin" /> : <Check aria-hidden="true" />}
                   </span>
                   <p className="mt-3 truncate font-bold">{file.name}</p><p className="mt-1 text-sm text-[#687b73]">{formatBytes(file.size)}</p>
-                  {conversion.status === "preparing" && <p className="mt-2 text-sm font-semibold text-[#376a56]">Preparing your ornament…</p>}
+                  {conversion.status === "preparing" && <p className="mt-2 text-sm font-semibold text-[#376a56]">Checking your GLB…</p>}
                   {conversion.status === "error" && <p role="alert" className="mx-auto mt-3 max-w-md text-sm font-medium text-[#a6382d]">{conversion.message}</p>}
                 </>}
                 <button type="button" onClick={clearFile} disabled={uploading} className="mt-3 inline-flex items-center gap-1 rounded px-2 py-1 text-sm font-semibold text-[#a6382d] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c74331]"><X aria-hidden="true" className="size-4" /> {conversion.status === "error" ? "Choose another file" : "Remove"}</button>
               </div> : <label htmlFor="model" role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); inputRef.current?.click(); } }} className="cursor-pointer rounded-xl p-3 outline-none focus-visible:ring-2 focus-visible:ring-[#c74331]">
-                <UploadCloud aria-hidden="true" className="mx-auto size-10 text-[#376a56]" /><span className="mt-3 block font-bold">Drop your .3dm here</span><span className="mt-1 block text-sm text-[#687b73]">or <span className="font-semibold text-[#a6382d] underline">browse your files</span></span><span id="model-hint" className="mt-3 block text-xs text-[#7c8b84]">Only valid Rhino models are accepted</span>
+                <UploadCloud aria-hidden="true" className="mx-auto size-10 text-[#376a56]" /><span className="mt-3 block font-bold">Drop your .glb here</span><span className="mt-1 block text-sm text-[#687b73]">or <span className="font-semibold text-[#a6382d] underline">browse your files</span></span><span id="model-hint" className="mt-3 block text-xs text-[#7c8b84]">A self-contained GLB 2.0 model</span>
               </label>}
             </div>
-            <p className="mt-3 text-xs leading-5 text-[#687b73]">Keep it within a 4″ cube and add a point on a layer named <code className="rounded bg-[#eef3f0] px-1 py-0.5 font-bold">eyelet</code> where it should hang.</p>
+            <p className="mt-3 text-xs leading-5 text-[#687b73]">Up to 4″ on each side. Your ornament hangs from its top centre at true size. Use the agent prompt to prepare your export.</p>
             {fieldError?.field === "model" && <p id="model-error" role="alert" className="mt-3 flex gap-2 text-sm font-medium text-[#a6382d]"><CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />{fieldError.message}</p>}
             <div className="mt-7 flex gap-4 border-t border-[#18372d]/10 pt-7">
               <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#174b3a] font-bold text-[#f5d77e]">2</span>
@@ -277,27 +276,18 @@ export function OrnamentStudio({ onOrnamentsChange }: { onOrnamentsChange?: (orn
                   aria-describedby="message-hint message-count"
                   placeholder="Share a holiday wish"
                   className="mt-2 w-full resize-none rounded-xl border border-[#9eaea7] px-4 py-3 text-base leading-6 outline-none placeholder:text-[#98a49f] focus:border-[#174b3a] focus:ring-4 focus:ring-[#174b3a]/10" />
-                <p id="message-hint" className="mt-1 text-xs text-[#718078]">Shown with your name when visitors select the ornament.</p>
+                <p id="message-hint" className="mt-1 text-xs text-[#718078]">Appears briefly as your ornament turns into view, or when selected.</p>
               </div>
             </div>
 
             {uploading && <div className="mt-6" aria-live="polite"><div className="mb-2 flex justify-between text-sm font-semibold"><span>Uploading model...</span><span>{progress}%</span></div><Progress value={progress} className="bg-[#dce7e1] [&_[data-slot=progress-indicator]]:bg-[#bd3d30]" /></div>}
             {submitError && <div role="alert" className="mt-5 flex gap-2 rounded-xl border border-[#bd3d30]/20 bg-[#fff6f3] p-4 text-sm font-medium text-[#9b3228]"><CircleAlert aria-hidden="true" className="mt-0.5 size-5 shrink-0" />{submitError}</div>}
             {success && <div ref={successRef} tabIndex={-1} role="status" className="mt-5 flex gap-3 rounded-xl border border-[#2f7458]/20 bg-[#eff8f2] p-4 outline-none focus:ring-2 focus:ring-[#2f7458]"><span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#2f7458] text-white"><Check aria-hidden="true" className="size-4" /></span><div><p className="font-bold">Your ornament is on the tree!</p><p className="mt-0.5 text-sm text-[#567066]">It was placed in spot {success.slot}.</p></div></div>}
-            <Button type="submit" disabled={uploading || (file !== null && conversion.status !== "ready")} className="mt-6 h-12 w-full rounded-xl bg-[#bd3d30] text-base shadow-[0_8px_22px_rgba(157,48,38,.22)] hover:bg-[#a9362b] focus-visible:ring-[#bd3d30]/35">{uploading ? <><LoaderCircle aria-hidden="true" className="animate-spin" /> Uploading...</> : conversion.status === "preparing" ? <><LoaderCircle aria-hidden="true" className="animate-spin" /> Preparing your ornament…</> : <><Sparkles aria-hidden="true" /> Add to the tree</>}</Button>
+            <Button type="submit" disabled={uploading || (file !== null && conversion.status !== "ready")} className="mt-6 h-12 w-full rounded-xl bg-[#bd3d30] text-base shadow-[0_8px_22px_rgba(157,48,38,.22)] hover:bg-[#a9362b] focus-visible:ring-[#bd3d30]/35">{uploading ? <><LoaderCircle aria-hidden="true" className="animate-spin" /> Uploading...</> : conversion.status === "preparing" ? <><LoaderCircle aria-hidden="true" className="animate-spin" /> Checking your GLB…</> : <><Sparkles aria-hidden="true" /> Add to the tree</>}</Button>
             <p className="mt-4 text-center text-xs leading-5 text-[#718078]">By uploading, you are sharing this model publicly on the community tree.</p>
           </form>
 
-          <aside className="rounded-3xl border border-[#785e25]/15 bg-[#fffaf0] p-6 shadow-sm">
-            <div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-full bg-[#efe4c4] text-[#765b20]"><Gift aria-hidden="true" className="size-5" /></span><h2 className="font-serif text-xl font-bold text-[#563f16]">Export it right</h2></div>
-            <ol className="mt-6 space-y-5 text-sm leading-6 text-[#6e6040]">
-              <li className="flex gap-3"><span className="font-bold text-[#ad382d]">01</span><span>Model it at real size, up to 4″ on each side, in any units. It hangs on the tree at true scale.</span></li>
-              <li className="flex gap-3"><span className="font-bold text-[#ad382d]">02</span><span>Run <code className="rounded bg-[#efe6cd] px-1.5 py-0.5 text-xs font-bold">SelAll</code>, then <code className="rounded bg-[#efe6cd] px-1.5 py-0.5 text-xs font-bold">Export</code> as Rhino 3DM.</span></li>
-              <li className="flex gap-3"><span className="font-bold text-[#ad382d]">03</span><span>Add a layer named <code className="rounded bg-[#efe6cd] px-1.5 py-0.5 text-xs font-bold">eyelet</code> with one point where the hook goes.</span></li>
-              <li className="flex gap-3"><span className="font-bold text-[#ad382d]">04</span><span>With Rhino MCP, ask: &ldquo;Export the ornament only as a .3dm under 20 MiB.&rdquo;</span></li>
-            </ol>
-            <details className="group mt-6 border-t border-[#8c6d29]/15 pt-4 text-sm text-[#6e6040]"><summary className="flex cursor-pointer list-none items-center justify-between rounded font-bold text-[#563f16] outline-none focus-visible:ring-2 focus-visible:ring-[#bd3d30]">Before you upload <ChevronDown aria-hidden="true" className="size-4 transition group-open:rotate-180" /></summary><p className="mt-3 leading-6">Remove construction geometry and unused layers so the ornament stays lightweight.</p></details>
-          </aside>
+          <GlbAgentPrompt />
         </div>
       </section>
 
@@ -315,7 +305,7 @@ export function OrnamentStudio({ onOrnamentsChange }: { onOrnamentsChange?: (orn
           : <ul className="mt-8 grid gap-3 sm:grid-cols-2" aria-label={`${ornaments.length} visible ornaments`}>
               {ornaments.map((ornament) => <li key={ornament.id} className="flex items-center gap-4 rounded-2xl border border-[#18372d]/10 bg-white/85 p-4 shadow-sm">
                 <span className="grid size-12 shrink-0 place-items-center rounded-full bg-[#174b3a] font-serif text-lg font-bold text-[#f7df96]" aria-hidden="true">{ornament.initials.trim().charAt(0).toUpperCase()}</span>
-                <div className="min-w-0 flex-1"><p className="truncate font-semibold">{ornament.initials}</p><p className="truncate text-xs text-[#697c73]">{ornament.originalName}</p><p className="mt-0.5 text-xs text-[#697c73]">Spot {ornament.slot} - {formatBytes(ornament.byteSize)} → {formatBytes(ornament.previewByteSize)}</p></div>
+                <div className="min-w-0 flex-1"><p className="truncate font-semibold">{ornament.initials}</p><p className="truncate text-xs text-[#697c73]">{ornament.originalName}</p><p className="mt-0.5 text-xs text-[#697c73]">Spot {ornament.slot} - {formatBytes(ornament.byteSize)}</p></div>
                 <AlertDialog>
                   <AlertDialogTrigger asChild><Button type="button" variant="ghost" size="icon" className="text-[#9b382f] hover:bg-[#fff0ed]" aria-label={`Remove ${ornament.originalName} by ${ornament.initials}`} disabled={deletingId === ornament.id}>{deletingId === ornament.id ? <LoaderCircle aria-hidden="true" className="animate-spin" /> : <Trash2 aria-hidden="true" />}</Button></AlertDialogTrigger>
                   <AlertDialogContent className="border-[#18372d]/15 bg-[#fffdf9]"><AlertDialogHeader><AlertDialogTitle>Remove this ornament?</AlertDialogTitle><AlertDialogDescription><strong className="text-[#18372d]">{ornament.originalName}</strong> by {ornament.initials} will be removed from spot {ornament.slot}. This cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Keep it</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => void deleteOrnament(ornament.id)}>Remove ornament</AlertDialogAction></AlertDialogFooter></AlertDialogContent>

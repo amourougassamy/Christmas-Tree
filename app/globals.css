@@ -111,13 +111,12 @@ html {
   color: #18372d;
 }
 
-/* Tree page: a still CSS backdrop (deep green with a soft warm glow behind the
-   tree). Only the 2D snow canvas animates above it; the WebGL canvas is transparent. */
+/* A still snowy forest behind the transparent WebGL tree and falling snow. */
 .tree-backdrop {
-  background-color: #10271f;
-  background-image:
-    radial-gradient(ellipse 42% 48% at 50% 46%, rgb(255 214 140 / 11%), transparent 72%),
-    radial-gradient(ellipse 85% 75% at 50% 42%, #1a4434 0%, #10271f 58%, #08160f 100%);
+  background-color: #f5e9e2;
+  background-image: url("/white-forest.svg");
+  background-position: center;
+  background-size: cover;
 }
 
 /* Horizontal drags spin the tree; vertical swipes still scroll the page. */
@@ -131,4 +130,19 @@ html {
 
 .tree-stage:active {
   cursor: grabbing;
+}
+
+/* Waldo leans sideways from behind a distant fir, then retreats. */
+.forest-waldo-person {
+  opacity: 0;
+  transform: translate(-17px, 16px) rotate(-12deg);
+  transform-origin: 30px 105px;
+  transition: transform 850ms ease-in-out, opacity 550ms ease;
+}
+.forest-waldo-person.is-peeking {
+  opacity: 1;
+  transform: translate(15px, 0) rotate(12deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .forest-waldo { display: none; }
 }

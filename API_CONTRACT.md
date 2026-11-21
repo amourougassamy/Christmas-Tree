@@ -6,14 +6,14 @@ The app is self-hosted on Node (Next.js). Metadata lives in SQLite; files live o
 
 ## `POST /api/ornaments`
 
-Send `multipart/form-data` with `initials`, optional `message`, `model`, and `preview` fields. The legacy `initials` field name stores the participant's display name.
+Send `multipart/form-data` with `initials`, optional `message`, and `model` fields. The legacy `initials` field name stores the participant's display name.
 
 - `initials`: a display name containing 1-60 characters after trimming.
 - `message`: optional participant text. Whitespace is trimmed; empty is allowed; maximum 80 characters. No default message is stored.
-- `model`: the original Rhino 3DM file. Filename ends in `.3dm` (case-insensitive), has the Rhino file header, non-empty, at most 20 MiB (20,971,520 bytes). Stored for re-conversion; never rendered on the tree.
-- `preview`: the optimized `.glb` produced in the uploader's browser from `model` (see **Preview format**). The server parses it and enforces every rule below.
+- `model`: one non-empty GLB 2.0 file with a `.glb` filename (case-insensitive), at most 512 KiB (524,288 bytes). It must meet the format rules below. The original is stored unchanged; a second GLB is generated with its top centre at the hanging origin.
+- There is no separate `preview` upload. The server validates and prepares the model itself before claiming a slot.
 - Returns `201 { "ornament": Ornament }`.
-- Validation errors: `400 INVALID_INITIALS`, `400 INVALID_MESSAGE`, `400 MODEL_REQUIRED`, `400 EMPTY_MODEL`, `413 MODEL_TOO_LARGE`, `415 INVALID_MODEL_TYPE`, `415 INVALID_MODEL_CONTENT`, `400 PREVIEW_REQUIRED`, `415 INVALID_PREVIEW` (not a parseable glTF binary, or uses unsupported extensions), `413 PREVIEW_TOO_LARGE` (bytes, triangles, or materials over budget), `422 PREVIEW_HAS_TEXTURES`, `422 ORNAMENT_TOO_BIG` (bounding box over the 4" limit; message states the measured size in inches).
+- Validation errors: `400 INVALID_INITIALS`, `400 INVALID_MESSAGE`, `400 MODEL_REQUIRED`, `400 EMPTY_MODEL`, `413 MODEL_TOO_LARGE`, `415 INVALID_MODEL_TYPE`, `415 INVALID_MODEL_CONTENT`, `415 INVALID_PREVIEW` (not a parseable glTF binary, or uses unsupported extensions), `413 PREVIEW_TOO_LARGE` (bytes, triangles, or materials over budget), `422 PREVIEW_HAS_TEXTURES`, `422 ORNAMENT_TOO_BIG` (bounding box over the 4" limit; message states the measured size in inches).
 
 Uploads claim slots 1 through 60 in round-robin order. Claiming an occupied slot archives its current ornament; archived records remain until deleted.
 
@@ -27,7 +27,7 @@ Streams the optimized `.glb` preview for an active or archived ornament. `Conten
 
 ## `GET /api/ornaments/:id/source`
 
-Streams the original `.3dm`. `Content-Type: application/octet-stream`, `Content-Length`, an inline filename, same caching. Same 404s as `/model`.
+Streams the original uploaded `.glb`. `Content-Type: model/gltf-binary` (legacy `.3dm` sources retain `application/octet-stream`), `Content-Length`, an inline filename, same caching. Same 404s as `/model`.
 
 ## `DELETE /api/ornaments/:id`
 
@@ -41,28 +41,25 @@ type Ornament = {
   initials: string;
   message: string;           // trimmed participant text, or empty string
   slot: number;              // integer 1-60
-  originalName: string;      // original .3dm filename
-  byteSize: number;          // .3dm size in bytes
+  originalName: string;      // original upload filename
+  byteSize: number;          // original file size in bytes
   previewByteSize: number;   // .glb size in bytes
   createdAt: string;         // ISO 8601 UTC
   archivedAt: string | null; // null means active
   modelUrl: string;          // same-origin .glb endpoint
-  sourceUrl: string;         // same-origin .3dm endpoint
+  sourceUrl: string;         // same-origin original-file endpoint
 };
 ```
 
 ## Preview format (`.glb`)
 
-Shared between the browser converter (writer), the server validator, and the tree renderer (reader). Constants live in `lib/ornaments/types.ts`.
+Shared between browser checks, server validation, and the tree renderer. Constants live in `lib/ornaments/types.ts`.
 
-- glTF 2.0 binary (`.glb`), at most `MAX_PREVIEW_BYTES` (512 KiB).
-- **Real-world size, one scale for every ornament.** Units are metres (glTF standard), converted from the Rhino file's model unit system. Rhino files with no unit system are treated as inches. Every ornament's rendered geometry (excluding the eyelet point) must fit within a 4" × 4" × 4" box (`MAX_ORNAMENT_INCHES`, 0.1016 m per side) with 5% tolerance (`ORNAMENT_SIZE_TOLERANCE`): each bounding-box side ≤ 0.10668 m. Nothing is rescaled to fit.
-- **Y-up.** Rhino's Z-up is rotated to Y-up.
-- **Hanging origin = eyelet.** Participants put a single point object on a Rhino layer named `eyelet` (matched case-insensitively, including as a sublayer's own name) where the ornament should hang from. The converter translates the model so that point is the origin (0, 0, 0). Point/curve objects on that layer are not rendered; meshes/surfaces on it (e.g. a modelled ring) are rendered like any other geometry.
-  - No eyelet layer, or no point on it → fallback: bounding box centred on X and Z with its highest point at Y = 0. More than one point → the highest one is used. The uploader's preview shows a warning in both cases.
-  - The glTF `asset.extras` records `{ "eyelet": "layer" | "fallback", "sizeInches": [x, y, z] }` (informational; the server does not trust it for limits).
-  - The tree places the origin exactly on a branch tip and lets the ornament hang below it.
-- Triangle meshes only (no lines or points), at most `MAX_PREVIEW_TRIANGLES` (8,000) triangles total, at most `MAX_PREVIEW_MATERIALS` (4) materials, one mesh primitive per material.
+- glTF 2.0 binary (`.glb`), at most `MAX_MODEL_BYTES` / `MAX_PREVIEW_BYTES` (512 KiB for both the original and prepared GLB).
+- **Real-world size, one scale for every ornament.** Units are metres (glTF standard). Geometry must fit within a 4" × 4" × 4" box (`MAX_ORNAMENT_INCHES`, 0.1016 m per side) with 5% tolerance: each bounding-box side ≤ 0.10668 m. Nothing is rescaled to fit. Rhino export must map Z-up to glTF Y-up.
+- **Hanging origin = top centre.** The app measures world-space mesh bounds and wraps the scene roots in a translation: centre X and Z, highest Y at zero. The renderer places this origin at the branch's hanging point. No Rhino eyelet layer or point is required. The browser and server independently prepare the same uploaded source bytes.
+- Static meshes only; animations and skinned meshes are rejected.
+- Triangle meshes only (no lines or points), at most `MAX_PREVIEW_TRIANGLES` (8,000) triangles total, at most `MAX_PREVIEW_MATERIALS` (4) materials.
 - Materials are `KHR`-core PBR metallic-roughness with base colour factors only. **No textures or images.**
 - Allowed extensions: `EXT_meshopt_compression`, `KHR_mesh_quantization`. The reader registers the meshopt decoder.
 - Tree mapping: the renderer applies one constant `SCENE_UNITS_PER_METRE` so that a 4" ornament spans the tree's standard ornament size; smaller ornaments stay proportionally smaller.

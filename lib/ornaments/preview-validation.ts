@@ -5,6 +5,7 @@ import { MAX_PREVIEW_BYTES, MAX_PREVIEW_MATERIALS, MAX_PREVIEW_TRIANGLES } from 
 import { ApiError } from "./validation.ts";
 
 export interface PreviewStats {
+  boundsMetres: [[number, number, number], [number, number, number]];
   triangles: number;
   materials: number;
   /** World-space bounding-box size in metres, [x, y, z]. */
@@ -44,6 +45,9 @@ export async function validatePreview(bytes: Uint8Array): Promise<PreviewStats> 
   }
   const root = document.getRoot();
 
+  if (root.listAnimations().length || root.listSkins().length) {
+    throw invalid("Export a static ornament without animations or skinned meshes.");
+  }
   const materials = root.listMaterials().length;
   if (materials > MAX_PREVIEW_MATERIALS) {
     throw new ApiError(413, "PREVIEW_TOO_LARGE", `The preview has ${materials} materials; at most ${MAX_PREVIEW_MATERIALS} are allowed.`);
@@ -106,7 +110,7 @@ export async function validatePreview(bytes: Uint8Array): Promise<PreviewStats> 
   const sizeMetres = [max[0] - min[0], max[1] - min[1], max[2] - min[2]] as [number, number, number];
   if (exceedsOrnamentLimit(sizeMetres)) throw new ApiError(422, "ORNAMENT_TOO_BIG", tooBigMessage(sizeMetres));
 
-  return { triangles, materials, sizeMetres };
+  return { triangles, materials, sizeMetres, boundsMetres: [min as [number, number, number], max as [number, number, number]] };
 }
 
 function readGlbJson(bytes: Uint8Array): Record<string, unknown> {
