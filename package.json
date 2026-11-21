@@ -9,7 +9,7 @@
     "prepare:rhino": "node scripts/prepare-rhino.mjs",
     "dev": "npm run prepare:rhino && next dev",
     "build": "npm run prepare:rhino && next build",
-    "start": "next start --hostname \"${HOSTNAME:-0.0.0.0}\" --port \"${PORT:-3000}\"",
+    "start": "node scripts/start.mjs",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "lint": "eslint . --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
