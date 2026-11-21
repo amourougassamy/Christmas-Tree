@@ -1,4 +1,5 @@
-import { MAX_MESSAGE_LENGTH, MAX_MODEL_BYTES, MAX_NAME_LENGTH } from "./types.ts";
+import { countMessageWords } from "./message.ts";
+import { MAX_MESSAGE_WORDS, MAX_MODEL_BYTES, MAX_NAME_LENGTH } from "./types.ts";
 
 /**
  * True for an ApiError from any copy of this module. Next.js can bundle this file
@@ -45,8 +46,8 @@ export function validateMessage(value: unknown): string {
     throw new ApiError(400, "INVALID_MESSAGE", "Message must be text.");
   }
   const message = value.trim();
-  if (message.length > MAX_MESSAGE_LENGTH) {
-    throw new ApiError(400, "INVALID_MESSAGE", "Message cannot exceed 80 characters.");
+  if (countMessageWords(message) > MAX_MESSAGE_WORDS) {
+    throw new ApiError(400, "INVALID_MESSAGE", "Your holiday wish cannot exceed 20 words.");
   }
   return message;
 }

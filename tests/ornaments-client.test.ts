@@ -44,9 +44,9 @@ test("byte sizes are concise and readable", () => {
   assert.equal(formatBytes(2 * 1024 * 1024), "2.0 MB");
 });
 
-test("optional message counter starts blank and tracks the 80-character limit", () => {
-  assert.equal(formatMessageCount(""), "0/80");
-  assert.equal(formatMessageCount("x".repeat(80)), "80/80");
+test("wish counter counts words across spaces and line breaks", () => {
+  assert.equal(formatMessageCount(""), "0/20 words");
+  assert.equal(formatMessageCount("  Happy   holidays!\nFrom all of us.  "), "6/20 words");
 });
 
 

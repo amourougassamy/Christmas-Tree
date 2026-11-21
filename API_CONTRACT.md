@@ -9,7 +9,7 @@ The app is self-hosted on Node (Next.js). Metadata lives in SQLite; files live o
 Send `multipart/form-data` with `initials`, optional `message`, and `model` fields. The legacy `initials` field name stores the participant's display name.
 
 - `initials`: a display name containing 1-60 characters after trimming.
-- `message`: optional participant text. Whitespace is trimmed; empty is allowed; maximum 80 characters. No default message is stored.
+- `message`: optional participant text. Whitespace is trimmed; empty is allowed; maximum 20 whitespace-separated words. No default message is stored.
 - `model`: one non-empty GLB 2.0 file with a `.glb` filename (case-insensitive), at most 512 KiB (524,288 bytes). It must meet the format rules below. The original is stored unchanged; a second GLB is generated with its top centre at the hanging origin.
 - There is no separate `preview` upload. The server validates and prepares the model itself before claiming a slot.
 - Returns `201 { "ornament": Ornament }`.

@@ -1,9 +1,10 @@
-import { MAX_MODEL_BYTES, MAX_NAME_LENGTH } from "./types.ts";
+import { countMessageWords } from "./message.ts";
+import { MAX_MODEL_BYTES, MAX_NAME_LENGTH, MAX_MESSAGE_WORDS } from "./types.ts";
 
 
 
 export type ClientValidationError = {
-  field: "initials" | "model";
+  field: "initials" | "model" | "message";
   message: string;
 };
 
@@ -44,7 +45,7 @@ export async function validateGlbFile(file: File): Promise<ClientValidationError
 }
 
 export function formatMessageCount(value: string): string {
-  return `${value.length}/80`;
+  return `${countMessageWords(value)}/${MAX_MESSAGE_WORDS} words`;
 }
 
 export function formatBytes(bytes: number): string {

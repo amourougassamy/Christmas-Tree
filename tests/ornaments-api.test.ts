@@ -223,7 +223,7 @@ test("upload validation enforces name, extension, and 512 KiB limit", async () =
     [uploadRequest("AB", "star.obj"), 415, "INVALID_MODEL_TYPE"],
     [uploadRequest("AB", "star.3dm"), 415, "INVALID_MODEL_TYPE"],
     [uploadRequest("AB", "star.glb", new Uint8Array(MAX_MODEL_BYTES + 1)), 413, "MODEL_TOO_LARGE"],
-    [uploadRequest("AB", "star.glb", new Uint8Array([1]), "x".repeat(81)), 400, "INVALID_MESSAGE"],
+    [uploadRequest("AB", "star.glb", new Uint8Array([1]), "wish ".repeat(21)), 400, "INVALID_MESSAGE"],
     [uploadRequest("AB", "fake.glb", new TextEncoder().encode("not a GLB file")), 415, "INVALID_MODEL_CONTENT"],
   ] as const;
 
@@ -233,6 +233,17 @@ test("upload validation enforces name, extension, and 512 KiB limit", async () =
     assert.equal(response.status, status);
     assert.equal(((await response.json()) as { error: { code: string } }).error.code, code);
   }
+});
+
+test("wishes accept 20 words even beyond 80 characters and reject a 21st", async () => {
+  const { service } = fixture();
+  const wish = Array(20).fill("Christmas").join(" ");
+  const accepted = await uploadResponse(uploadRequest("AB", "wish.glb", VALID_GLB, wish), service);
+  assert.equal(accepted.status, 201);
+  assert.equal((await accepted.json()).ornament.message, wish);
+  const rejected = await uploadResponse(uploadRequest("AB", "wish.glb", VALID_GLB, wish + " everyone"), service);
+  assert.equal(rejected.status, 400);
+  assert.equal(await errorCode(rejected), "INVALID_MESSAGE");
 });
 
 test("missing records return the stable JSON error envelope", async () => {
