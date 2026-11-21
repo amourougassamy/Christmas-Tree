@@ -4,7 +4,8 @@ import { DatabaseSync } from "node:sqlite";
 
 /** Directory that holds `tree.db` and `models/`. Override with `DATA_DIR`. */
 export function dataDir(): string {
-  return resolve(process.env.DATA_DIR || "./data");
+  // Runtime data, not source: keep Turbopack from tracing it into the build.
+  return resolve(/*turbopackIgnore: true*/ process.env.DATA_DIR || "./data");
 }
 
 export interface OpenDatabaseOptions {
@@ -29,7 +30,7 @@ export function openDatabase(options: OpenDatabaseOptions = {}): DatabaseSync {
   db.exec("PRAGMA journal_mode = WAL");
   db.exec("PRAGMA foreign_keys = ON");
   db.exec("PRAGMA busy_timeout = 5000");
-  migrate(db, options.migrationsDir ?? resolve(process.cwd(), "drizzle"));
+  migrate(db, options.migrationsDir ?? resolve(/*turbopackIgnore: true*/ process.cwd(), "drizzle"));
   return db;
 }
 
