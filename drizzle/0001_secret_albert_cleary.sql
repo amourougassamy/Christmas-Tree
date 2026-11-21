@@ -1,1 +1,0 @@
-ALTER TABLE `ornaments` ADD `message` text DEFAULT '' NOT NULL;

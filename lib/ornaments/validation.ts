@@ -1,4 +1,16 @@
-import { MAX_MESSAGE_LENGTH, MAX_MODEL_BYTES, MAX_NAME_LENGTH } from "./types.ts";
+import { MAX_MESSAGE_LENGTH, MAX_MODEL_BYTES, MAX_NAME_LENGTH, MAX_PREVIEW_BYTES } from "./types.ts";
+
+/**
+ * True for an ApiError from any copy of this module. Next.js can bundle this file
+ * more than once (instrumentation vs. route chunks, or dev reloads with the
+ * service cached on globalThis), so `instanceof` alone is not reliable.
+ */
+export function isApiError(error: unknown): error is ApiError {
+  if (error instanceof ApiError) return true;
+  if (!(error instanceof Error) || error.name !== "ApiError") return false;
+  const { status, code } = error as Error & { status?: unknown; code?: unknown };
+  return typeof status === "number" && typeof code === "string";
+}
 
 export class ApiError extends Error {
   readonly status: number;
@@ -10,6 +22,7 @@ export class ApiError extends Error {
     message: string,
   ) {
     super(message);
+    this.name = "ApiError";
     this.status = status;
     this.code = code;
   }
@@ -60,4 +73,13 @@ export async function readValidatedModel(file: File): Promise<ArrayBuffer> {
     throw new ApiError(415, "INVALID_MODEL_CONTENT", "The file is not a valid Rhino 3DM model.");
   }
   return bytes;
+}
+
+export function validatePreviewFile(file: unknown): asserts file is File {
+  if (!(file instanceof File) || file.size === 0) {
+    throw new ApiError(400, "PREVIEW_REQUIRED", "An optimized .glb preview is required. Re-select the model so it can be prepared.");
+  }
+  if (file.size > MAX_PREVIEW_BYTES) {
+    throw new ApiError(413, "PREVIEW_TOO_LARGE", `The preview cannot exceed ${MAX_PREVIEW_BYTES / 1024} KiB.`);
+  }
 }

@@ -1,5 +1,13 @@
+import { validatePreview } from "./preview-validation.ts";
 import type { ModelStore, OrnamentRecord, OrnamentRepository, PublicOrnament, StoredModel } from "./types.ts";
-import { ApiError, readValidatedModel, validateInitials, validateMessage, validateModel } from "./validation.ts";
+import {
+  ApiError,
+  readValidatedModel,
+  validateInitials,
+  validateMessage,
+  validateModel,
+  validatePreviewFile,
+} from "./validation.ts";
 
 export class OrnamentService {
   private readonly repository: OrnamentRepository;
@@ -19,14 +27,25 @@ export class OrnamentService {
     this.newId = newId;
   }
 
-  async upload(initialsValue: unknown, messageValue: unknown, modelValue: unknown): Promise<PublicOrnament> {
+  async upload(
+    initialsValue: unknown,
+    messageValue: unknown,
+    modelValue: unknown,
+    previewValue: unknown,
+  ): Promise<PublicOrnament> {
     const initials = validateInitials(initialsValue);
     const message = validateMessage(messageValue);
     validateModel(modelValue);
     const model = modelValue;
     const modelBytes = await readValidatedModel(model);
+    validatePreviewFile(previewValue);
+    const preview = previewValue;
+    const previewBytes = await preview.arrayBuffer();
+    await validatePreview(new Uint8Array(previewBytes));
+
     const id = this.newId();
     const objectKey = `ornaments/${id}.3dm`;
+    const previewKey = `ornaments/${id}.glb`;
     const createdAt = this.now().toISOString();
     const slot = await this.repository.claimNextSlot();
     const record: OrnamentRecord = {
@@ -37,16 +56,22 @@ export class OrnamentService {
       objectKey,
       originalName: model.name,
       byteSize: model.size,
+      previewKey,
+      previewByteSize: previewBytes.byteLength,
       createdAt,
       archivedAt: null,
       deletedAt: null,
     };
 
-    await this.models.put(objectKey, modelBytes, { id, initials });
     try {
+      await this.models.put(objectKey, modelBytes, { id, initials, kind: "source" });
+      await this.models.put(previewKey, previewBytes, { id, initials, kind: "preview" });
       await this.repository.archiveActiveAndInsert(record);
     } catch (error) {
-      await this.models.delete(objectKey).catch(() => undefined);
+      await Promise.all([
+        this.models.delete(objectKey).catch(() => undefined),
+        this.models.delete(previewKey).catch(() => undefined),
+      ]);
       throw error;
     }
     return toPublic(record);
@@ -56,22 +81,36 @@ export class OrnamentService {
     return (await this.repository.list(includeArchived)).map(toPublic);
   }
 
+  /** The optimized .glb preview. */
   async model(id: string): Promise<{ record: OrnamentRecord; model: StoredModel }> {
-    const record = await this.repository.find(id);
-    if (!record) throw new ApiError(404, "NOT_FOUND", "Ornament not found.");
-    const model = await this.models.get(record.objectKey);
-    if (!model) throw new ApiError(404, "MODEL_NOT_FOUND", "Ornament model not found.");
-    return { record, model };
+    return this.stored(id, (record) => record.previewKey);
+  }
+
+  /** The original .3dm. */
+  async source(id: string): Promise<{ record: OrnamentRecord; model: StoredModel }> {
+    return this.stored(id, (record) => record.objectKey);
   }
 
   async delete(id: string): Promise<void> {
     const deleted = await this.repository.deleteAndRestore(id, this.now().toISOString());
     if (!deleted) throw new ApiError(404, "NOT_FOUND", "Ornament not found.");
-    await this.models.delete(deleted.objectKey).catch(() => undefined);
+    await Promise.all([
+      this.models.delete(deleted.objectKey).catch(() => undefined),
+      this.models.delete(deleted.previewKey).catch(() => undefined),
+    ]);
+  }
+
+  private async stored(id: string, key: (record: OrnamentRecord) => string) {
+    const record = await this.repository.find(id);
+    if (!record) throw new ApiError(404, "NOT_FOUND", "Ornament not found.");
+    const model = await this.models.get(key(record));
+    if (!model) throw new ApiError(404, "MODEL_NOT_FOUND", "Ornament model not found.");
+    return { record, model };
   }
 }
 
 function toPublic(record: OrnamentRecord): PublicOrnament {
+  const base = `/api/ornaments/${encodeURIComponent(record.id)}`;
   return {
     id: record.id,
     initials: record.initials,
@@ -79,8 +118,10 @@ function toPublic(record: OrnamentRecord): PublicOrnament {
     slot: record.slot,
     originalName: record.originalName,
     byteSize: record.byteSize,
+    previewByteSize: record.previewByteSize,
     createdAt: record.createdAt,
     archivedAt: record.archivedAt,
-    modelUrl: `/api/ornaments/${encodeURIComponent(record.id)}/model`,
+    modelUrl: `${base}/model`,
+    sourceUrl: `${base}/source`,
   };
 }

@@ -1,39 +1,79 @@
+import {
+  coneRadiusAt,
+  rimRadiusAt,
+  STANDARD_ORNAMENT_SPAN,
+  TREE_TIERS,
+  type ConeTier,
+} from "./geometry.ts";
+
+export type Vec3 = readonly [number, number, number];
+
 export type TreeAnchor = {
   slot: number;
-  position: readonly [number, number, number];
+  /** Branch tip: the point on the cone's lower rim the hook hangs from. */
+  tip: Vec3;
+  /** Where the ornament's eyelet (its glTF origin) goes; directly below and just outside `tip`. */
+  position: Vec3;
+  /** Rotation around Y that turns the ornament's +Z face outward. */
   rotationY: number;
-  scale: number;
+  /** Index into TREE_TIERS of the cone this anchor hangs from. */
+  tier: number;
 };
 
 export const TREE_SLOT_COUNT = 60;
-const ORNAMENTS_PER_RIDGE = [4, 6, 8, 9, 10, 11, 12] as const;
-const RIDGE_COUNT = ORNAMENTS_PER_RIDGE.length;
-const LOWEST_CONE_CENTER = -2.25;
-const CONE_CENTER_STEP = 0.93;
-const CONE_HALF_HEIGHT = 2.45 / 2;
-const LOWEST_CONE_RADIUS = 3.55;
-const CONE_RADIUS_STEP = 0.36;
+/** Ornaments per ring, top ring first (slot 1 is on the top ring). */
+export const ORNAMENTS_PER_RIDGE = [4, 6, 8, 9, 10, 11, 12] as const;
+/** Vertical drop of the hook from the branch tip to the eyelet. */
+export const HOOK_DROP = 0.1;
+/** Smallest outward step from the branch tip to the eyelet. */
+export const MIN_HOOK_REACH = 0.03;
+/** Clearance kept between a 4" ornament and any foliage. */
+export const FOLIAGE_CLEARANCE = 0.03;
 
-export function createTreeAnchors(count = TREE_SLOT_COUNT): TreeAnchor[] {
+/**
+ * How far past the rim (radially) an eyelet must sit so a standard 4"
+ * ornament hanging from `tier`'s rim, centred below its eyelet, clears every
+ * other cone.
+ */
+export function requiredReach(tierIndex: number, rimRadius: number, tiers: readonly ConeTier[] = TREE_TIERS): number {
+  const tier = tiers[tierIndex];
+  const top = tier.baseY - HOOK_DROP;
+  const bottom = top - STANDARD_ORNAMENT_SPAN - FOLIAGE_CLEARANCE;
+  let reach = MIN_HOOK_REACH;
+  tiers.forEach((other, index) => {
+    if (index === tierIndex) return;
+    const low = Math.max(bottom, other.baseY);
+    const high = Math.min(top, other.baseY + other.height);
+    if (low > high) return;
+    // Cones widen downward, so the widest cross-section is at `low`.
+    const needed = coneRadiusAt(other, low) + STANDARD_ORNAMENT_SPAN / 2 + FOLIAGE_CLEARANCE - rimRadius;
+    reach = Math.max(reach, needed);
+  });
+  return reach;
+}
+
+export function createTreeAnchors(count = TREE_SLOT_COUNT, tiers: readonly ConeTier[] = TREE_TIERS): TreeAnchor[] {
   const anchors: TreeAnchor[] = [];
 
-  // Work from the top ridge down, keeping the original one-based slot order.
-  // A small radial offset prevents models from intersecting the foliage.
-  for (let ridge = 0; ridge < RIDGE_COUNT && anchors.length < count; ridge += 1) {
-    const coneLayer = RIDGE_COUNT - 1 - ridge;
-    const ridgeCapacity = ORNAMENTS_PER_RIDGE[ridge];
-    const y = LOWEST_CONE_CENTER + coneLayer * CONE_CENTER_STEP - CONE_HALF_HEIGHT - 0.03;
-    const radius = LOWEST_CONE_RADIUS - coneLayer * CONE_RADIUS_STEP + 0.08;
-    const stagger = ridge % 2 === 0 ? 0 : Math.PI / ridgeCapacity;
+  // Top ring first, keeping the original one-based slot order.
+  for (let ridge = 0; ridge < ORNAMENTS_PER_RIDGE.length && anchors.length < count; ridge += 1) {
+    const tierIndex = tiers.length - 1 - ridge;
+    const tier = tiers[tierIndex];
+    const capacity = ORNAMENTS_PER_RIDGE[ridge];
+    const stagger = ridge % 2 === 0 ? 0 : Math.PI / capacity;
 
-    for (let index = 0; index < ridgeCapacity && anchors.length < count; index += 1) {
-      const angle = (index / ridgeCapacity) * Math.PI * 2 + stagger;
-      const slot = anchors.length + 1;
+    for (let index = 0; index < capacity && anchors.length < count; index += 1) {
+      const angle = (index / capacity) * Math.PI * 2 + stagger;
+      const rim = rimRadiusAt(tier, angle);
+      const reach = requiredReach(tierIndex, rim, tiers);
+      const sin = Math.sin(angle);
+      const cos = Math.cos(angle);
       anchors.push({
-        slot,
-        position: [Math.cos(angle) * radius, y, Math.sin(angle) * radius],
-        rotationY: -angle + Math.PI / 2,
-        scale: 0.82 + (((slot - 1) * 17) % 9) / 50,
+        slot: anchors.length + 1,
+        tip: [sin * rim, tier.baseY, cos * rim],
+        position: [sin * (rim + reach), tier.baseY - HOOK_DROP, cos * (rim + reach)],
+        rotationY: angle,
+        tier: tierIndex,
       });
     }
   }
