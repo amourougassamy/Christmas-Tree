@@ -42,12 +42,30 @@ export function formatOrnamentCallout(message: string, initials: string): string
   return message ? `${message} — ${initials}` : initials;
 }
 
+/**
+ * Prepare a loaded `.glb` preview for the tree. Previews are in metres with
+ * their origin at the eyelet (see "Preview format" in API_CONTRACT.md), so the
+ * only transform is the one shared scene scale: no per-model normalization,
+ * no recentring. Ornaments don't cast or receive shadows.
+ */
+export function prepareOrnamentModel(root: Object3D, unitsPerMetre: number): Object3D {
+  root.position.set(0, 0, 0);
+  root.scale.setScalar(unitsPerMetre);
+  root.traverse((child) => {
+    child.castShadow = false;
+    child.receiveShadow = false;
+  });
+  root.updateMatrixWorld(true);
+  return root;
+}
+
 export type NormalizedModel = {
   group: Group;
   sourceRadius: number;
   scale: number;
 };
 
+/** Fits arbitrary geometry to a diameter. Not used for tree ornaments, which render at true scale. */
 export function normalizeVisibleGeometry(
   source: Object3D,
   targetDiameter = 0.72,
