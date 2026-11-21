@@ -110,3 +110,25 @@ html {
   background: #f0c8be;
   color: #18372d;
 }
+
+/* Tree page: a still CSS backdrop (deep green with a soft warm glow behind the
+   tree). Only the 2D snow canvas animates above it; the WebGL canvas is transparent. */
+.tree-backdrop {
+  background-color: #10271f;
+  background-image:
+    radial-gradient(ellipse 42% 48% at 50% 46%, rgb(255 214 140 / 11%), transparent 72%),
+    radial-gradient(ellipse 85% 75% at 50% 42%, #1a4434 0%, #10271f 58%, #08160f 100%);
+}
+
+/* Horizontal drags spin the tree; vertical swipes still scroll the page. */
+.tree-stage {
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: grab;
+}
+
+.tree-stage:active {
+  cursor: grabbing;
+}
