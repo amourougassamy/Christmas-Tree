@@ -1,4 +1,4 @@
-import { MAX_MESSAGE_LENGTH, MAX_MODEL_BYTES, MAX_NAME_LENGTH } from "./types.ts";
+import { MAX_MESSAGE_LENGTH, MAX_MODEL_BYTES, MAX_NAME_LENGTH, MAX_PREVIEW_BYTES } from "./types.ts";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -60,4 +60,13 @@ export async function readValidatedModel(file: File): Promise<ArrayBuffer> {
     throw new ApiError(415, "INVALID_MODEL_CONTENT", "The file is not a valid Rhino 3DM model.");
   }
   return bytes;
+}
+
+export function validatePreviewFile(file: unknown): asserts file is File {
+  if (!(file instanceof File) || file.size === 0) {
+    throw new ApiError(400, "PREVIEW_REQUIRED", "An optimized .glb preview is required. Re-select the model so it can be prepared.");
+  }
+  if (file.size > MAX_PREVIEW_BYTES) {
+    throw new ApiError(413, "PREVIEW_TOO_LARGE", `The preview cannot exceed ${MAX_PREVIEW_BYTES / 1024} KiB.`);
+  }
 }
