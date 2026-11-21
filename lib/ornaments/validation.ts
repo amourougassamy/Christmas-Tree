@@ -1,5 +1,17 @@
 import { MAX_MESSAGE_LENGTH, MAX_MODEL_BYTES, MAX_NAME_LENGTH, MAX_PREVIEW_BYTES } from "./types.ts";
 
+/**
+ * True for an ApiError from any copy of this module. Next.js can bundle this file
+ * more than once (instrumentation vs. route chunks, or dev reloads with the
+ * service cached on globalThis), so `instanceof` alone is not reliable.
+ */
+export function isApiError(error: unknown): error is ApiError {
+  if (error instanceof ApiError) return true;
+  if (!(error instanceof Error) || error.name !== "ApiError") return false;
+  const { status, code } = error as Error & { status?: unknown; code?: unknown };
+  return typeof status === "number" && typeof code === "string";
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
@@ -10,6 +22,7 @@ export class ApiError extends Error {
     message: string,
   ) {
     super(message);
+    this.name = "ApiError";
     this.status = status;
     this.code = code;
   }

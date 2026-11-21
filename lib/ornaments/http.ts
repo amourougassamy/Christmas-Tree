@@ -1,5 +1,5 @@
 import { OrnamentService } from "./service.ts";
-import { ApiError } from "./validation.ts";
+import { isApiError } from "./validation.ts";
 
 export async function uploadResponse(request: Request, service: OrnamentService): Promise<Response> {
   try {
@@ -71,7 +71,7 @@ export async function deleteResponse(id: string, service: OrnamentService): Prom
 }
 
 function errorResponse(error: unknown): Response {
-  if (error instanceof ApiError) {
+  if (isApiError(error)) {
     return Response.json({ error: { code: error.code, message: error.message } }, { status: error.status });
   }
   console.error(error);

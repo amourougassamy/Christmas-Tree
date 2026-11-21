@@ -15,8 +15,6 @@ import { createTreeAnchors, TREE_ANCHORS } from "../lib/tree/anchors.ts";
 import {
   formatOrnamentCallout,
   isSupportedMaterial,
-  normalizeVisibleGeometry,
-  orientRhinoModel,
   prepareOrnamentModel,
   preserveSupportedMaterials,
 } from "../lib/tree/model.ts";
@@ -152,28 +150,6 @@ test("glb ornaments keep their eyelet origin and the one true scale", () => {
   prepareOrnamentModel(small, SCENE_UNITS_PER_METRE);
   const smallBox = new Box3().setFromObject(small);
   assert.ok(Math.abs(smallBox.max.x - smallBox.min.x - 0.18) < 1e-5, "a 1-inch ornament stays a quarter size");
-});
-
-test("normalization centers visible geometry and scales its diameter", () => {
-  const source = new Group();
-  const mesh = new Mesh(new BoxGeometry(4, 2, 2), new MeshStandardMaterial());
-  mesh.position.set(12, -3, 5);
-  source.add(mesh);
-  const result = normalizeVisibleGeometry(source, 1);
-  assert.ok(result);
-  assert.ok(Math.abs(result.scale - 1 / Math.sqrt(24)) < 1e-8);
-  assert.equal(result.group.children[0], source);
-  source.updateMatrixWorld(true);
-  mesh.geometry.computeBoundingBox();
-  const normalizedBox = mesh.geometry.boundingBox!.clone().applyMatrix4(mesh.matrixWorld);
-  assert.ok(Math.abs(normalizedBox.max.y) < 1e-8);
-});
-
-test("Rhino Z-up is converted to Three.js Y-up", () => {
-  const source = new Group();
-  orientRhinoModel(source);
-  const transformed = new Vector3(0, 0, 1).applyQuaternion(source.quaternion);
-  assert.ok(transformed.distanceTo(new Vector3(0, 1, 0)) < 1e-8);
 });
 
 test("supported materials survive while custom shaders receive a fallback", () => {

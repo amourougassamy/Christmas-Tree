@@ -241,3 +241,21 @@ test("missing records return the stable JSON error envelope", async () => {
     error: { code: "NOT_FOUND", message: "Ornament not found." },
   });
 });
+
+test("errors from another bundle's ApiError copy keep their status and code", async () => {
+  // Next.js can load lib/ornaments/validation.ts more than once, so the HTTP layer
+  // must not depend on `instanceof` to recognise API errors.
+  class ForeignApiError extends Error {
+    readonly status = 415;
+    readonly code = "INVALID_PREVIEW";
+    constructor() {
+      super("The preview is not a glTF binary (.glb).");
+      this.name = "ApiError";
+    }
+  }
+  const failing = { upload: async () => { throw new ForeignApiError(); } } as unknown as OrnamentService;
+  const request = new Request("http://test/api/ornaments", { method: "POST", body: new FormData() });
+  const response = await uploadResponse(request, failing);
+  assert.equal(response.status, 415);
+  assert.equal(((await response.json()) as { error: { code: string } }).error.code, "INVALID_PREVIEW");
+});

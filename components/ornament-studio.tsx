@@ -205,7 +205,6 @@ export function OrnamentStudio({ onOrnamentsChange }: { onOrnamentsChange?: (orn
 
   return (
     <main className="min-h-screen overflow-hidden bg-[#f5f3ed] text-[#18372d]">
-      <div aria-hidden="true" className="pointer-events-none fixed inset-0 opacity-70 [background-image:radial-gradient(circle_at_14%_16%,rgba(255,255,255,.9)_0_2px,transparent_3px),radial-gradient(circle_at_78%_8%,rgba(255,255,255,.8)_0_1.5px,transparent_2.5px)] [background-size:120px_120px,170px_170px]" />
       <header className="relative border-b border-[#18372d]/10 bg-[#f9f8f4]/90 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 sm:px-8 lg:px-12">
           <a href="#top" className="flex items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c74331] focus-visible:ring-offset-4">
