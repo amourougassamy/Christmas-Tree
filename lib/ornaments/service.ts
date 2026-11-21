@@ -1,4 +1,4 @@
-import { validatePreview } from "./preview-validation.ts";
+import { prepareGlb } from "./prepare-glb.ts";
 import type { ModelStore, OrnamentRecord, OrnamentRepository, PublicOrnament, StoredModel } from "./types.ts";
 import {
   ApiError,
@@ -6,7 +6,6 @@ import {
   validateInitials,
   validateMessage,
   validateModel,
-  validatePreviewFile,
 } from "./validation.ts";
 
 export class OrnamentService {
@@ -31,20 +30,17 @@ export class OrnamentService {
     initialsValue: unknown,
     messageValue: unknown,
     modelValue: unknown,
-    previewValue: unknown,
   ): Promise<PublicOrnament> {
     const initials = validateInitials(initialsValue);
     const message = validateMessage(messageValue);
     validateModel(modelValue);
     const model = modelValue;
     const modelBytes = await readValidatedModel(model);
-    validatePreviewFile(previewValue);
-    const preview = previewValue;
-    const previewBytes = await preview.arrayBuffer();
-    await validatePreview(new Uint8Array(previewBytes));
+    const prepared = await prepareGlb(new Uint8Array(modelBytes));
+    const previewBytes = prepared.glb.slice().buffer;
 
     const id = this.newId();
-    const objectKey = `ornaments/${id}.3dm`;
+    const objectKey = `ornaments/${id}.source.glb`;
     const previewKey = `ornaments/${id}.glb`;
     const createdAt = this.now().toISOString();
     const slot = await this.repository.claimNextSlot();
@@ -86,7 +82,7 @@ export class OrnamentService {
     return this.stored(id, (record) => record.previewKey);
   }
 
-  /** The original .3dm. */
+  /** The original uploaded file. */
   async source(id: string): Promise<{ record: OrnamentRecord; model: StoredModel }> {
     return this.stored(id, (record) => record.objectKey);
   }

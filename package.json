@@ -7,8 +7,8 @@
   },
   "scripts": {
     "prepare:rhino": "node scripts/prepare-rhino.mjs",
-    "dev": "npm run prepare:rhino && next dev",
-    "build": "npm run prepare:rhino && next build",
+    "dev": "next dev",
+    "build": "next build",
     "start": "node scripts/start.mjs",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "lint": "eslint . --ignore-pattern .next",

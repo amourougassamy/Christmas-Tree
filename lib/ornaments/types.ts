@@ -1,5 +1,5 @@
 export const SLOT_COUNT = 60;
-export const MAX_MODEL_BYTES = 20 * 1024 * 1024;
+export const MAX_MODEL_BYTES = 512 * 1024;
 export const MAX_NAME_LENGTH = 60;
 export const MAX_MESSAGE_LENGTH = 80;
 
@@ -20,7 +20,7 @@ export interface OrnamentRecord {
   initials: string;
   message: string;
   slot: number;
-  /** Storage key of the original Rhino .3dm (kept for re-conversion, never rendered). */
+  /** Storage key of the original uploaded file (GLB for new uploads; legacy 3DM remains downloadable). */
   objectKey: string;
   originalName: string;
   byteSize: number;
@@ -35,7 +35,7 @@ export interface OrnamentRecord {
 export type PublicOrnament = Omit<OrnamentRecord, "objectKey" | "previewKey" | "deletedAt"> & {
   /** Same-origin URL of the optimized .glb preview. */
   modelUrl: string;
-  /** Same-origin URL of the original .3dm. */
+  /** Same-origin URL of the original uploaded file. */
   sourceUrl: string;
 };
 
