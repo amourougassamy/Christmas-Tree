@@ -113,6 +113,7 @@ html {
 
 /* A still snowy forest behind the transparent WebGL tree and falling snow. */
 .tree-backdrop {
+  filter: brightness(1.15);
   background-color: #c2c5d4;
   background-image: url("/white-forest.svg");
   background-position: center;

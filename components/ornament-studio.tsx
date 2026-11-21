@@ -1,7 +1,7 @@
 "use client";
 
 import { type DragEvent, type FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { Check, CircleAlert, Gift, LoaderCircle, RefreshCw, Sparkles, Trash2, UploadCloud, Users, X } from "lucide-react";
+import { Check, ChevronDown, CircleAlert, Gift, LoaderCircle, RefreshCw, Sparkles, Trash2, UploadCloud, Users, X } from "lucide-react";
 
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -17,6 +17,8 @@ import {
   formatBytes, formatCount, formatInches, formatMessageCount, validateInitialsClient, validateGlbFile,
   type ClientValidationError,
 } from "@/lib/ornaments/client";
+import { countMessageWords } from "@/lib/ornaments/message";
+import { MAX_MESSAGE_WORDS } from "@/lib/ornaments/types";
 import type { PublicOrnament } from "@/lib/ornaments/types";
 
 function apiError(text: string, fallback: string) {
@@ -91,6 +93,7 @@ function ConversionReport({ file, result }: { file: File; result: PreparedGlb })
 export function OrnamentStudio({ onOrnamentsChange, onOrnamentUploaded }: { onOrnamentsChange?: (ornaments: PublicOrnament[]) => void; onOrnamentUploaded?: (id: string) => void }) {
   const [initials, setInitials] = useState("");
   const [message, setMessage] = useState("");
+  const messageTooLong = countMessageWords(message) > MAX_MESSAGE_WORDS;
   const [file, setFile] = useState<File | null>(null);
   const [conversion, setConversion] = useState<Conversion>({ status: "idle" });
   const conversionToken = useRef(0);
@@ -105,6 +108,7 @@ export function OrnamentStudio({ onOrnamentsChange, onOrnamentUploaded }: { onOr
   const [listError, setListError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const manageRef = useRef<HTMLDetailsElement>(null);
   const successRef = useRef<HTMLDivElement>(null);
 
   const loadOrnaments = useCallback(async (showLoading = true) => {
@@ -171,6 +175,7 @@ export function OrnamentStudio({ onOrnamentsChange, onOrnamentUploaded }: { onOr
     event.preventDefault(); setSubmitError(""); setSuccess(null);
     const initialsError = validateInitialsClient(initials);
     if (initialsError) { setFieldError(initialsError); return; }
+    if (messageTooLong) { setFieldError({ field: "message", message: "Keep your holiday wish to 20 words or fewer." }); return; }
     if (!file) { setFieldError({ field: "model", message: "Choose a .glb file." }); return; }
     if (conversion.status !== "ready") {
       setSubmitError(conversion.status === "error" ? conversion.message : "Your GLB is still being checked.");
@@ -212,7 +217,7 @@ export function OrnamentStudio({ onOrnamentsChange, onOrnamentUploaded }: { onOr
             <span className="grid size-10 place-items-center rounded-full bg-[#174b3a] text-[#f9e7ab]"><Gift aria-hidden="true" /></span>
             <span className="font-serif text-lg font-bold">The Community Tree</span>
           </a>
-          <a href="#manage" className="hidden items-center gap-2 rounded-lg border border-[#174b3a]/15 bg-white px-4 py-2 text-sm font-semibold shadow-sm hover:border-[#174b3a]/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c74331] sm:flex"><Users aria-hidden="true" className="size-4" /> Manage ornaments</a>
+          <a href="#manage" onClick={() => { if (manageRef.current) manageRef.current.open = true; }} className="hidden items-center gap-2 rounded-lg border border-[#174b3a]/15 bg-white px-4 py-2 text-sm font-semibold shadow-sm hover:border-[#174b3a]/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c74331] sm:flex"><Users aria-hidden="true" className="size-4" /> Manage ornaments</a>
         </div>
       </header>
 
@@ -269,22 +274,24 @@ export function OrnamentStudio({ onOrnamentsChange, onOrnamentUploaded }: { onOr
                   className="mt-4 h-14 w-full rounded-xl border border-[#9eaea7] px-4 text-lg font-semibold outline-none placeholder:font-normal placeholder:text-[#98a49f] focus:border-[#174b3a] focus:ring-4 focus:ring-[#174b3a]/10" />
                 {fieldError?.field === "initials" && <p id="initials-error" role="alert" className="mt-2 flex items-center gap-2 text-sm font-medium text-[#a6382d]"><CircleAlert aria-hidden="true" className="size-4" />{fieldError.message}</p>}
                 <div className="mt-5 flex items-end justify-between gap-3">
-                  <label htmlFor="message" className="font-semibold">Message <span className="font-normal text-[#718078]">(optional)</span></label>
-                  <span id="message-count" className="text-xs tabular-nums text-[#718078]">{formatMessageCount(message)}</span>
+                  <label htmlFor="message" className="font-semibold">Holiday wish <span className="font-normal text-[#718078]">(optional)</span></label>
+                  <span id="message-count" className={`text-xs tabular-nums ${messageTooLong ? "font-semibold text-[#a6382d]" : "text-[#718078]"}`}>{formatMessageCount(message)}</span>
                 </div>
-                <textarea id="message" value={message} maxLength={80} rows={3} disabled={uploading}
-                  onChange={(event) => setMessage(event.target.value)}
-                  aria-describedby="message-hint message-count"
+                <textarea id="message" value={message} rows={3} disabled={uploading}
+                  onChange={(event) => { setMessage(event.target.value); if (fieldError?.field === "message") setFieldError(null); }}
+                  aria-describedby="message-hint message-count message-error"
+                  aria-invalid={messageTooLong || undefined}
                   placeholder="Share a holiday wish"
                   className="mt-2 w-full resize-none rounded-xl border border-[#9eaea7] px-4 py-3 text-base leading-6 outline-none placeholder:text-[#98a49f] focus:border-[#174b3a] focus:ring-4 focus:ring-[#174b3a]/10" />
-                <p id="message-hint" className="mt-1 text-xs text-[#718078]">Appears briefly as your ornament turns into view, or when selected.</p>
+                {messageTooLong && <p id="message-error" role="alert" className="mt-2 text-sm font-medium text-[#a6382d]">Keep your holiday wish to 20 words or fewer.</p>}
+                <p id="message-hint" className="mt-1 text-xs text-[#718078]">20 words maximum. Appears briefly as your ornament turns into view, or when selected.</p>
               </div>
             </div>
 
             {uploading && <div className="mt-6" aria-live="polite"><div className="mb-2 flex justify-between text-sm font-semibold"><span>Uploading model...</span><span>{progress}%</span></div><Progress value={progress} className="bg-[#dce7e1] [&_[data-slot=progress-indicator]]:bg-[#bd3d30]" /></div>}
             {submitError && <div role="alert" className="mt-5 flex gap-2 rounded-xl border border-[#bd3d30]/20 bg-[#fff6f3] p-4 text-sm font-medium text-[#9b3228]"><CircleAlert aria-hidden="true" className="mt-0.5 size-5 shrink-0" />{submitError}</div>}
             {success && <div ref={successRef} tabIndex={-1} role="status" className="mt-5 flex gap-3 rounded-xl border border-[#2f7458]/20 bg-[#eff8f2] p-4 outline-none focus:ring-2 focus:ring-[#2f7458]"><span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#2f7458] text-white"><Check aria-hidden="true" className="size-4" /></span><div><p className="font-bold">Your ornament is on the tree!</p><p className="mt-0.5 text-sm text-[#567066]">It was placed in spot {success.slot}.</p></div></div>}
-            <Button type="submit" disabled={uploading || (file !== null && conversion.status !== "ready")} className="mt-6 h-12 w-full rounded-xl bg-[#bd3d30] text-base shadow-[0_8px_22px_rgba(157,48,38,.22)] hover:bg-[#a9362b] focus-visible:ring-[#bd3d30]/35">{uploading ? <><LoaderCircle aria-hidden="true" className="animate-spin" /> Uploading...</> : conversion.status === "preparing" ? <><LoaderCircle aria-hidden="true" className="animate-spin" /> Checking your GLB…</> : <><Sparkles aria-hidden="true" /> Add to the tree</>}</Button>
+            <Button type="submit" disabled={uploading || messageTooLong || (file !== null && conversion.status !== "ready")} className="mt-6 h-12 w-full rounded-xl bg-[#bd3d30] text-base shadow-[0_8px_22px_rgba(157,48,38,.22)] hover:bg-[#a9362b] focus-visible:ring-[#bd3d30]/35">{uploading ? <><LoaderCircle aria-hidden="true" className="animate-spin" /> Uploading...</> : conversion.status === "preparing" ? <><LoaderCircle aria-hidden="true" className="animate-spin" /> Checking your GLB…</> : <><Sparkles aria-hidden="true" /> Add to the tree</>}</Button>
             <p className="mt-4 text-center text-xs leading-5 text-[#718078]">By uploading, you are sharing this model publicly on the community tree.</p>
           </form>
 
@@ -292,11 +299,16 @@ export function OrnamentStudio({ onOrnamentsChange, onOrnamentUploaded }: { onOr
         </div>
       </section>
 
-      <section id="manage" className="relative bg-[#e8ede8] px-5 py-16 sm:px-8 lg:px-12">
-        <div className="mx-auto max-w-5xl">
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-            <div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#a6382d]">On the tree now</p><h2 className="mt-2 font-serif text-3xl font-bold sm:text-4xl">Manage ornaments</h2><p className="mt-2 text-sm text-[#60736a]">Visible ornaments are public. Remove only the one you intend to delete.</p></div>
-            <Button type="button" variant="outline" onClick={() => void loadOrnaments()} disabled={loadingList} className="self-start border-[#174b3a]/20 bg-white sm:self-auto"><RefreshCw aria-hidden="true" className={loadingList ? "animate-spin" : ""} /> Refresh</Button>
+      <section id="manage" className="relative bg-[#e8ede8] px-5 py-10 sm:px-8 lg:px-12">
+        <details ref={manageRef} className="group/manage mx-auto max-w-5xl border-y border-[#18372d]/15">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-6 text-[#18372d] outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#487260] [&::-webkit-details-marker]:hidden">
+            <h2 className="font-serif text-xl font-semibold sm:text-2xl">Manage ornaments</h2>
+            <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-[#60736a]/70 transition-transform duration-200 group-open/manage:rotate-180" />
+          </summary>
+          <div className="border-t border-[#18372d]/10 pb-8 pt-5">
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-sm text-[#60736a]">Visible ornaments are public. Remove only the one you intend to delete.</p>
+            <Button type="button" variant="outline" onClick={() => void loadOrnaments()} disabled={loadingList} className="shrink-0 border-[#174b3a]/20 bg-white"><RefreshCw aria-hidden="true" className={loadingList ? "animate-spin" : ""} /> Refresh</Button>
           </div>
 
           {listError && <div role="alert" className="mt-5 flex justify-between gap-3 rounded-xl border border-[#bd3d30]/20 bg-[#fff6f3] p-4 text-sm font-medium text-[#9b3228]"><span className="flex gap-2"><CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />{listError}</span><button type="button" className="shrink-0 underline underline-offset-4" onClick={() => void loadOrnaments()}>Try again</button></div>}
@@ -313,7 +325,8 @@ export function OrnamentStudio({ onOrnamentsChange, onOrnamentUploaded }: { onOr
                 </AlertDialog>
               </li>)}
             </ul>}
-        </div>
+          </div>
+        </details>
       </section>
       <footer className="relative bg-[#143d30] px-5 py-8 text-center text-sm text-[#d4e0da]"><p><span className="text-[#f2cf73]">&#10022;</span> Made together, one ornament at a time.</p></footer>
     </main>

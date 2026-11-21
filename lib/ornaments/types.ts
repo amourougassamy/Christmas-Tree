@@ -1,7 +1,7 @@
 export const SLOT_COUNT = 60;
 export const MAX_MODEL_BYTES = 512 * 1024;
 export const MAX_NAME_LENGTH = 60;
-export const MAX_MESSAGE_LENGTH = 80;
+export const MAX_MESSAGE_WORDS = 20;
 
 /** Budgets for the optimized .glb preview the tree page renders. */
 export const MAX_PREVIEW_BYTES = 512 * 1024;
