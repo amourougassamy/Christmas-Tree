@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formatBytes, formatMessageCount, hasRhinoHeader, validateInitialsClient, validateModelMetadata } from "../lib/ornaments/client.ts";
+import {
+  formatBytes,
+  formatCount,
+  formatInches,
+  formatMessageCount,
+  hasRhinoHeader,
+  previewFileName,
+  validateInitialsClient,
+  validateModelMetadata,
+} from "../lib/ornaments/client.ts";
 import { MAX_MODEL_BYTES } from "../lib/ornaments/types.ts";
 
 test("client name validation accepts full names", () => {
@@ -31,4 +40,15 @@ test("byte sizes are concise and readable", () => {
 test("optional message counter starts blank and tracks the 80-character limit", () => {
   assert.equal(formatMessageCount(""), "0/80");
   assert.equal(formatMessageCount("x".repeat(80)), "80/80");
+});
+
+test("preview files are named after the model", () => {
+  assert.equal(previewFileName("Star.3DM"), "Star.glb");
+  assert.equal(previewFileName("my bauble.3dm"), "my bauble.glb");
+  assert.equal(previewFileName(".3dm"), "ornament.glb");
+});
+
+test("conversion report values are readable", () => {
+  assert.equal(formatInches([3, 3.224, 0.391]), "3.00 × 3.22 × 0.39 in");
+  assert.equal(formatCount(200000), "200,000");
 });

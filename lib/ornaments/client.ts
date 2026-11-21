@@ -56,3 +56,18 @@ export function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+/** Filename for the converted preview uploaded alongside `modelName`. */
+export function previewFileName(modelName: string): string {
+  const base = modelName.replace(/\.3dm$/i, "").trim();
+  return `${base || "ornament"}.glb`;
+}
+
+/** "3.00 × 3.22 × 3.00 in" */
+export function formatInches(size: readonly number[]): string {
+  return `${size.map((side) => side.toFixed(2)).join(" × ")} in`;
+}
+
+export function formatCount(value: number): string {
+  return value.toLocaleString("en-US");
+}
