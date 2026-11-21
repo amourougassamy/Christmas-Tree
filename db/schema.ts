@@ -11,6 +11,8 @@ export const ornaments = sqliteTable(
     objectKey: text("object_key").notNull().unique(),
     originalName: text("original_name").notNull(),
     byteSize: integer("byte_size").notNull(),
+    previewKey: text("preview_key").notNull().unique(),
+    previewByteSize: integer("preview_byte_size").notNull(),
     createdAt: text("created_at").notNull(),
     archivedAt: text("archived_at"),
     deletedAt: text("deleted_at"),

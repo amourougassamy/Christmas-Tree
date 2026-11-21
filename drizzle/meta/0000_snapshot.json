@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "46439475-0f7b-4473-82b4-5593fb72c560",
+  "id": "2636f817-5994-4a4f-92cc-90b473966e6e",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "ornament_allocator": {
@@ -46,6 +46,14 @@
           "notNull": true,
           "autoincrement": false
         },
+        "message": {
+          "name": "message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
         "slot": {
           "name": "slot",
           "type": "integer",
@@ -69,6 +77,20 @@
         },
         "byte_size": {
           "name": "byte_size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "preview_key": {
+          "name": "preview_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "preview_byte_size": {
+          "name": "preview_byte_size",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -101,6 +123,13 @@
           "name": "ornaments_object_key_unique",
           "columns": [
             "object_key"
+          ],
+          "isUnique": true
+        },
+        "ornaments_preview_key_unique": {
+          "name": "ornaments_preview_key_unique",
+          "columns": [
+            "preview_key"
           ],
           "isUnique": true
         },
