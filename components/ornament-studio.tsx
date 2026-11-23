@@ -1,6 +1,6 @@
 "use client";
 
-import { type DragEvent, type FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type DragEvent, type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, CircleAlert, Gift, LoaderCircle, RefreshCw, Sparkles, Trash2, UploadCloud, Users, X } from "lucide-react";
 
 import {
@@ -20,6 +20,15 @@ import {
 import { countMessageWords } from "@/lib/ornaments/message";
 import { MAX_MESSAGE_WORDS } from "@/lib/ornaments/types";
 import type { PublicOrnament } from "@/lib/ornaments/types";
+
+const CHRISTMAS_CONFETTI = Array.from({ length: 54 }, (_, index) => ({
+  color: ["#bd3d30", "#174b3a", "#f2cf73", "#ffffff", "#7d1f2d"][index % 5],
+  delay: `${(index % 12) * 0.06}s`,
+  drift: `${((index * 29) % 180) - 90}px`,
+  duration: `${2.8 + (index % 7) * 0.18}s`,
+  left: `${(index * 37) % 100}%`,
+  rotation: `${360 + (index % 5) * 120}deg`,
+}));
 
 function apiError(text: string, fallback: string) {
   try {
@@ -211,6 +220,32 @@ export function OrnamentStudio({ onOrnamentsChange, onOrnamentUploaded }: { onOr
 
   return (
     <main className="min-h-screen overflow-hidden bg-[#f5f3ed] text-[#18372d]">
+      {success && <div className="pointer-events-none fixed inset-0 z-50 overflow-hidden" aria-live="polite">
+        <div aria-hidden="true" className="absolute inset-0">
+          {CHRISTMAS_CONFETTI.map((piece, index) => <span
+            key={index}
+            className="christmas-confetti-piece"
+            style={{
+              left: piece.left,
+              "--confetti-color": piece.color,
+              "--confetti-delay": piece.delay,
+              "--confetti-drift": piece.drift,
+              "--confetti-duration": piece.duration,
+              "--confetti-rotation": piece.rotation,
+            } as CSSProperties}
+          />)}
+        </div>
+        <div className="absolute inset-x-4 top-1/2 flex -translate-y-1/2 justify-center">
+          <div ref={successRef} tabIndex={-1} role="status" className="christmas-celebration-card pointer-events-auto relative w-full max-w-xl rounded-3xl border border-[#f2cf73]/60 bg-[#fffdf8] p-7 text-center shadow-[0_28px_90px_rgba(14,48,37,.32)] outline-none focus:ring-4 focus:ring-[#f2cf73]/50 sm:p-10">
+            <button type="button" onClick={() => setSuccess(null)} className="absolute right-4 top-4 grid size-9 place-items-center rounded-full text-[#526b61] transition hover:bg-[#174b3a]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#174b3a]" aria-label="Close celebration"><X aria-hidden="true" className="size-5" /></button>
+            <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#174b3a] text-[#f2cf73] shadow-lg"><Sparkles aria-hidden="true" className="size-8" /></span>
+            <h2 className="mt-5 font-serif text-3xl font-bold text-[#174b3a]">Your ornament is on the tree!</h2>
+            <p className="mx-auto mt-4 max-w-md text-base leading-7 text-[#526b61]">Thanks for adding your ornament to the MKA Christmas tree. Wishing you warmth and joy for the holidays!</p>
+            <p className="mt-3 text-sm font-semibold text-[#9b382f]">Placed in spot {success.slot}</p>
+            <Button type="button" onClick={() => setSuccess(null)} className="mt-6 rounded-xl bg-[#174b3a] px-6 text-white hover:bg-[#103b2d]">Continue</Button>
+          </div>
+        </div>
+      </div>}
       <header className="relative border-b border-[#18372d]/10 bg-[#f9f8f4]/90 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 sm:px-8 lg:px-12">
           <a href="#top" className="flex items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c74331] focus-visible:ring-offset-4">
@@ -268,7 +303,7 @@ export function OrnamentStudio({ onOrnamentsChange, onOrnamentUploaded }: { onOr
               <div className="min-w-0 flex-1">
                 <label htmlFor="initials" className="font-serif text-2xl font-bold">Add your name</label>
                 <p id="initials-hint" className="mt-1 text-sm text-[#687b73]">Your full name, shown with your ornament</p>
-                <input id="initials" value={initials} maxLength={60} autoComplete="name" placeholder="E.g. Jordan Lee" disabled={uploading}
+                <input id="initials" value={initials} maxLength={60} autoComplete="name" placeholder="E.g. John Hooper" disabled={uploading}
                   onChange={(event) => { setInitials(event.target.value); if (fieldError?.field === "initials") setFieldError(null); }}
                   aria-describedby={`initials-hint${fieldError?.field === "initials" ? " initials-error" : ""}`} aria-invalid={fieldError?.field === "initials" || undefined}
                   className="mt-4 h-14 w-full rounded-xl border border-[#9eaea7] px-4 text-lg font-semibold outline-none placeholder:font-normal placeholder:text-[#98a49f] focus:border-[#174b3a] focus:ring-4 focus:ring-[#174b3a]/10" />
@@ -290,7 +325,6 @@ export function OrnamentStudio({ onOrnamentsChange, onOrnamentUploaded }: { onOr
 
             {uploading && <div className="mt-6" aria-live="polite"><div className="mb-2 flex justify-between text-sm font-semibold"><span>Uploading model...</span><span>{progress}%</span></div><Progress value={progress} className="bg-[#dce7e1] [&_[data-slot=progress-indicator]]:bg-[#bd3d30]" /></div>}
             {submitError && <div role="alert" className="mt-5 flex gap-2 rounded-xl border border-[#bd3d30]/20 bg-[#fff6f3] p-4 text-sm font-medium text-[#9b3228]"><CircleAlert aria-hidden="true" className="mt-0.5 size-5 shrink-0" />{submitError}</div>}
-            {success && <div ref={successRef} tabIndex={-1} role="status" className="mt-5 flex gap-3 rounded-xl border border-[#2f7458]/20 bg-[#eff8f2] p-4 outline-none focus:ring-2 focus:ring-[#2f7458]"><span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#2f7458] text-white"><Check aria-hidden="true" className="size-4" /></span><div><p className="font-bold">Your ornament is on the tree!</p><p className="mt-0.5 text-sm text-[#567066]">It was placed in spot {success.slot}.</p></div></div>}
             <Button type="submit" disabled={uploading || messageTooLong || (file !== null && conversion.status !== "ready")} className="mt-6 h-12 w-full rounded-xl bg-[#bd3d30] text-base shadow-[0_8px_22px_rgba(157,48,38,.22)] hover:bg-[#a9362b] focus-visible:ring-[#bd3d30]/35">{uploading ? <><LoaderCircle aria-hidden="true" className="animate-spin" /> Uploading...</> : conversion.status === "preparing" ? <><LoaderCircle aria-hidden="true" className="animate-spin" /> Checking your GLB…</> : <><Sparkles aria-hidden="true" /> Add to the tree</>}</Button>
             <p className="mt-4 text-center text-xs leading-5 text-[#718078]">By uploading, you are sharing this model publicly on the community tree.</p>
           </form>
