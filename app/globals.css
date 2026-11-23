@@ -173,24 +173,31 @@ html {
   --confetti-duration: 3.2s;
   --confetti-rotation: 540deg;
   position: absolute;
-  top: -12vh;
-  width: 0.7rem;
-  height: 1.25rem;
+  top: -16vh;
+  width: 0.8rem;
+  height: 1.5rem;
   border-radius: 0.2rem;
   background: var(--confetti-color);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.14);
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.2);
   animation: christmas-confetti-fall var(--confetti-duration) cubic-bezier(0.16, 0.72, 0.36, 1) var(--confetti-delay) forwards;
 }
 
 .christmas-confetti-piece:nth-child(3n) {
-  width: 0.85rem;
-  height: 0.85rem;
+  width: 1rem;
+  height: 1rem;
   border-radius: 50%;
 }
 
 .christmas-confetti-piece:nth-child(4n) {
-  width: 1.1rem;
-  height: 0.45rem;
+  width: 1.4rem;
+  height: 0.5rem;
+}
+
+.christmas-confetti-piece:nth-child(5n) {
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 0;
+  clip-path: polygon(50% 0, 62% 35%, 100% 50%, 62% 65%, 50% 100%, 38% 65%, 0 50%, 38% 35%);
 }
 
 .christmas-celebration-card {
@@ -200,14 +207,21 @@ html {
 @keyframes christmas-confetti-fall {
   0% {
     opacity: 0;
-    transform: translate3d(0, -8vh, 0) rotate(0deg) scale(0.6);
+    transform: translate3d(0, -12vh, 0) rotate(0deg) scale(0.45);
   }
-  8% {
+  5% {
+    opacity: 1;
+  }
+  48% {
+    opacity: 1;
+    transform: translate3d(0, 54vh, 0) rotate(420deg) scale(1.1);
+  }
+  84% {
     opacity: 1;
   }
   100% {
-    opacity: 0.95;
-    transform: translate3d(var(--confetti-drift), 122vh, 0) rotate(var(--confetti-rotation)) scale(1);
+    opacity: 0;
+    transform: translate3d(var(--confetti-drift), 128vh, 0) rotate(var(--confetti-rotation)) scale(0.9);
   }
 }
 

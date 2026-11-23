@@ -21,13 +21,13 @@ import { countMessageWords } from "@/lib/ornaments/message";
 import { MAX_MESSAGE_WORDS } from "@/lib/ornaments/types";
 import type { PublicOrnament } from "@/lib/ornaments/types";
 
-const CHRISTMAS_CONFETTI = Array.from({ length: 54 }, (_, index) => ({
-  color: ["#bd3d30", "#174b3a", "#f2cf73", "#ffffff", "#7d1f2d"][index % 5],
-  delay: `${(index % 12) * 0.06}s`,
-  drift: `${((index * 29) % 180) - 90}px`,
-  duration: `${2.8 + (index % 7) * 0.18}s`,
-  left: `${(index * 37) % 100}%`,
-  rotation: `${360 + (index % 5) * 120}deg`,
+const CHRISTMAS_CONFETTI = Array.from({ length: 180 }, (_, index) => ({
+  color: ["#bd3d30", "#174b3a", "#f2cf73", "#ffffff", "#7d1f2d", "#2d7b58"][index % 6],
+  delay: `${(index % 36) * 0.045}s`,
+  drift: `${((index * 67) % 360) - 180}px`,
+  duration: `${3.4 + (index % 11) * 0.16}s`,
+  left: `${(index * 47) % 101}%`,
+  rotation: `${720 + (index % 8) * 135}deg`,
 }));
 
 function apiError(text: string, fallback: string) {
