@@ -30,6 +30,7 @@ export function TreeExperience({ ornaments, arrivalId }: { ornaments: Ornament[]
   const [autoMessageId, setAutoMessageId] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [focusedId, setFocusedId] = useState<string | null>(null);
   const visibleOrnaments = useMemo(
     () => ornaments.filter((item) => item.slot >= 1 && item.slot <= TREE_SLOT_COUNT),
     [ornaments],
@@ -67,17 +68,23 @@ export function TreeExperience({ ornaments, arrivalId }: { ornaments: Ornament[]
   }, [zoom]);
 
   useEffect(() => {
+    sceneRef.current?.focus(focusedId);
+  }, [focusedId]);
+
+  useEffect(() => {
     if (!autoMessageId) return;
     const timer = setTimeout(() => setAutoMessageId(null), 2600);
     return () => clearTimeout(timer);
   }, [autoMessageId]);
 
   const adjustZoom = (delta: number) => {
+    setFocusedId(null);
     setZoom((current) => Math.max(1, Math.min(1.3, Math.round((current + delta) * 100) / 100)));
   };
 
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
     if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
+    if (!(event.target as Element).closest("[data-ornament-id]")) setFocusedId(null);
     pointerRef.current = { id: event.pointerId, startX: event.clientX, startY: event.clientY, dragged: false };
     sceneRef.current?.pointerDown(event.clientX);
   };
@@ -98,6 +105,11 @@ export function TreeExperience({ ornaments, arrivalId }: { ornaments: Ornament[]
     sceneRef.current?.pointerUp();
   };
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape") {
+      setFocusedId(null);
+      setActiveId(null);
+      return;
+    }
     if (event.key === "+" || event.key === "=" || event.key === "-") {
       event.preventDefault();
       adjustZoom(event.key === "-" ? -0.05 : 0.05);
@@ -105,6 +117,7 @@ export function TreeExperience({ ornaments, arrivalId }: { ornaments: Ornament[]
     }
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
     event.preventDefault();
+    setFocusedId(null);
     sceneRef.current?.nudge(event.key === "ArrowLeft" ? -1 : 1);
   };
 
@@ -118,7 +131,7 @@ export function TreeExperience({ ornaments, arrivalId }: { ornaments: Ornament[]
         tabIndex={0}
         role="group"
         aria-roledescription="3D tree"
-        aria-label="Community tree. Drag sideways or use the left and right arrow keys to spin it."
+        aria-label="Community tree. Select an ornament for a close-up. Drag sideways or use the left and right arrow keys to spin it."
         className="tree-stage absolute inset-0 z-[1] outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#426052]/60"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -135,7 +148,8 @@ export function TreeExperience({ ornaments, arrivalId }: { ornaments: Ornament[]
         <div ref={mountRef} className="absolute inset-0" />
         <div className="pointer-events-none absolute inset-0">
           {visibleOrnaments.map((ornament) => {
-            const active = activeId === ornament.id;
+            const focused = focusedId === ornament.id;
+            const active = activeId === ornament.id || focused;
             const showMessage = active || (!activeId && autoMessageId === ornament.id);
             return (
               <button
@@ -145,8 +159,9 @@ export function TreeExperience({ ornaments, arrivalId }: { ornaments: Ornament[]
                   else buttonRefs.current.delete(ornament.id);
                 }}
                 type="button"
+                data-ornament-id={ornament.id}
                 aria-label={ornament.message ? `${ornament.message} — ${ornament.initials}, ornament slot ${ornament.slot}` : `Ornament by ${ornament.initials}, slot ${ornament.slot}`}
-                aria-pressed={active}
+                aria-pressed={focused}
                 className="group pointer-events-auto absolute left-0 top-0 h-11 w-11 rounded-full opacity-0 outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-[#ffe19a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#153228]"
                 onPointerEnter={(event) => {
                   if (event.pointerType === "mouse") setActiveId(ornament.id);
@@ -154,7 +169,10 @@ export function TreeExperience({ ornaments, arrivalId }: { ornaments: Ornament[]
                 onPointerLeave={() => setActiveId((current) => current === ornament.id ? null : current)}
                 onFocus={() => setActiveId(ornament.id)}
                 onBlur={() => setActiveId((current) => current === ornament.id ? null : current)}
-                onClick={() => setActiveId((current) => current === ornament.id ? null : ornament.id)}
+                onClick={() => {
+                  setFocusedId((current) => current === ornament.id ? null : ornament.id);
+                  setActiveId(ornament.id);
+                }}
               >
                 <span className={`absolute left-1/2 top-[-1.8rem] w-max max-w-[min(16rem,70vw)] -translate-x-1/2 whitespace-normal rounded-xl border border-white/15 bg-[#10271f]/92 px-2.5 py-1 text-[10px] font-bold tracking-[0.16em] text-[#fff4cf] shadow-lg backdrop-blur transition duration-500 ${showMessage ? "scale-100 opacity-100" : "scale-90 opacity-0"}`}>
                   {formatOrnamentCallout(ornament.message, ornament.initials)}
@@ -172,7 +190,7 @@ export function TreeExperience({ ornaments, arrivalId }: { ornaments: Ornament[]
           <h1 className="mt-2 font-serif text-2xl tracking-[-0.03em] sm:text-4xl">Made brighter together.</h1>
         </div>
         <p className="max-w-40 text-right text-[11px] leading-relaxed text-[#f0e4df]/85 sm:max-w-60 sm:text-xs">
-          Drag sideways to spin the tree · tap an ornament to see who made it
+          Drag sideways to spin the tree · tap an ornament for a close-up
         </p>
       </header>
 
@@ -188,7 +206,7 @@ export function TreeExperience({ ornaments, arrivalId }: { ornaments: Ornament[]
           className="flex h-9 w-9 items-center justify-center rounded-full text-xl transition hover:bg-white/70 focus-visible:outline-2 focus-visible:outline-[#426052] disabled:opacity-30">
           −
         </button>
-        <span aria-live="polite" className="w-10 text-center text-[10px] tabular-nums">{Math.round(zoom * 100)}%</span>
+        <span aria-live="polite" className="w-14 text-center text-[10px] tabular-nums">{focusedId ? "Close-up" : `${Math.round(zoom * 100)}%`}</span>
         <button type="button" aria-label="Zoom in" disabled={zoom >= 1.3}
           onClick={() => adjustZoom(0.05)}
           className="flex h-9 w-9 items-center justify-center rounded-full text-xl transition hover:bg-white/70 focus-visible:outline-2 focus-visible:outline-[#426052] disabled:opacity-30">

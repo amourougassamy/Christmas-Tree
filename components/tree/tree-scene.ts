@@ -65,6 +65,7 @@ export type TreeSceneStats = {
 
 export type TreeScene = {
   sync(ornaments: readonly SceneOrnament[], arrivalId?: string | null): void;
+  focus(id: string | null): void;
   pointerDown(x: number): void;
   pointerMove(x: number): void;
   pointerUp(): void;
@@ -89,6 +90,10 @@ const STRING_RADIUS = 0.007;
 const LOAD_CONCURRENCY = 3;
 const FOV = 30;
 const ELEVATION = (5 * Math.PI) / 180;
+const BASE_CAMERA_ZOOM = 1.25;
+const ORNAMENT_FOCUS_ZOOM = 3.15;
+const FOCUS_DURATION_MS = 1600;
+const RETURN_DURATION_MS = 900;
 
 const zeroMatrix = new Matrix4().makeScale(0, 0, 0);
 
@@ -105,6 +110,10 @@ function disposeObject(root: Object3D) {
       material.dispose();
     });
   });
+}
+
+function easeInOutCubic(value: number) {
+  return value < 0.5 ? 4 * value ** 3 : 1 - ((-2 * value + 2) ** 3) / 2;
 }
 
 function addFoliage(tree: Group, occluders: Object3D[], onTextureReady: () => void) {
@@ -488,7 +497,7 @@ export function createTreeScene(options: {
   const scene = new Scene();
 
   const camera = new PerspectiveCamera(FOV, 1, 1, 200);
-  camera.zoom = 1.25;
+  camera.zoom = BASE_CAMERA_ZOOM;
   const renderer = new WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
   renderer.setClearColor(0x000000, 0);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -613,6 +622,17 @@ export function createTreeScene(options: {
   loader.setMeshoptDecoder(MeshoptDecoder);
   const slots = new Map<number, SlotEntry>();
   let failed = 0;
+  let manualZoom = 1;
+  let focusId: string | null = null;
+  const homeTarget = new Vector3();
+  const cameraTarget = new Vector3();
+  const desiredTarget = new Vector3();
+  let cameraTransition: {
+    startedAt: number;
+    duration: number;
+    fromTarget: Vector3;
+    fromZoom: number;
+  } | null = null;
 
   const queue = createLoadQueue<SlotEntry>({
     concurrency: LOAD_CONCURRENCY,
@@ -686,6 +706,22 @@ export function createTreeScene(options: {
     dirty = true;
   };
 
+  const beginCameraFocus = (id: string | null) => {
+    const nextId = id && [...slots.values()].some((entry) => entry.ornament.id === id) ? id : null;
+    if (nextId === focusId) return;
+    focusId = nextId;
+    spin.dragging = false;
+    spin.velocity = 0;
+    spin.idleFor = 0;
+    cameraTransition = {
+      startedAt: performance.now(),
+      duration: reducedMotion ? 0 : nextId ? FOCUS_DURATION_MS : RETURN_DURATION_MS,
+      fromTarget: cameraTarget.clone(),
+      fromZoom: camera.zoom,
+    };
+    dirty = true;
+  };
+
   const resize = () => {
     const width = Math.max(mount.clientWidth, 1);
     const height = Math.max(mount.clientHeight, 1);
@@ -707,7 +743,9 @@ export function createTreeScene(options: {
       maxWidthFraction: portrait ? 0.86 : 0.8,
     });
     camera.position.set(0, targetY + Math.sin(ELEVATION) * distance, Math.cos(ELEVATION) * distance);
-    camera.lookAt(0, targetY, 0);
+    homeTarget.set(0, targetY, 0);
+    if (!focusId) cameraTarget.copy(homeTarget);
+    camera.lookAt(cameraTarget);
     camera.near = Math.max(0.5, distance - 12);
     camera.far = distance + 12;
     camera.updateProjectionMatrix();
@@ -768,7 +806,7 @@ export function createTreeScene(options: {
     frame = requestAnimationFrame(render);
     const dt = Math.min((now - last) / 1000, 0.1);
     last = now;
-    if (stepSpin(spin, dt, !reducedMotion)) dirty = true;
+    if (stepSpin(spin, dt, !reducedMotion && !focusId)) dirty = true;
     const time = now / 1000;
     if (!reducedMotion) {
       canopy.rotation.z = Math.sin(time * 0.45) * 0.003;
@@ -786,9 +824,43 @@ export function createTreeScene(options: {
       dirty = true;
     }
     if (sparkles.update(time)) dirty = true;
+    tree.rotation.y = spin.angle;
+    tree.updateMatrixWorld(true);
+
+    let focusEntry = focusId
+      ? [...slots.values()].find((entry) => entry.ornament.id === focusId)
+      : undefined;
+    if (focusId && !focusEntry) {
+      beginCameraFocus(null);
+      focusEntry = undefined;
+    }
+    if (focusEntry) {
+      desiredTarget.set(0, -STANDARD_ORNAMENT_SPAN * 0.4, 0);
+      focusEntry.group.localToWorld(desiredTarget);
+    } else {
+      desiredTarget.copy(homeTarget);
+    }
+
+    if (cameraTransition) {
+      const progress = cameraTransition.duration === 0
+        ? 1
+        : Math.min(1, (now - cameraTransition.startedAt) / cameraTransition.duration);
+      const eased = easeInOutCubic(progress);
+      const targetZoom = focusEntry ? ORNAMENT_FOCUS_ZOOM : BASE_CAMERA_ZOOM * manualZoom;
+      cameraTarget.lerpVectors(cameraTransition.fromTarget, desiredTarget, eased);
+      camera.zoom = cameraTransition.fromZoom + (targetZoom - cameraTransition.fromZoom) * eased;
+      camera.lookAt(cameraTarget);
+      camera.updateProjectionMatrix();
+      if (progress === 1) cameraTransition = null;
+      dirty = true;
+    } else if (focusEntry) {
+      // Follow the ornament's subtle branch sway once the close-up settles.
+      cameraTarget.copy(desiredTarget);
+      camera.lookAt(cameraTarget);
+      dirty = true;
+    }
     if (!dirty) return;
     dirty = false;
-    tree.rotation.y = spin.angle;
     renderer.render(scene, camera);
     const spinning = Math.abs(spin.angle - previousAngle) > 0.00001;
     previousAngle = spin.angle;
@@ -798,7 +870,11 @@ export function createTreeScene(options: {
 
   return {
     sync,
+    focus(id) {
+      beginCameraFocus(id);
+    },
     pointerDown(x) {
+      beginCameraFocus(null);
       beginDrag(spin);
       lastX = x;
       lastMoveAt = performance.now();
@@ -816,11 +892,15 @@ export function createTreeScene(options: {
       endDrag(spin, performance.now() - lastMoveAt);
     },
     nudge(direction) {
+      beginCameraFocus(null);
       nudge(spin, direction);
     },
     zoom(value) {
-      camera.zoom = 1.25 * Math.max(1, Math.min(1.3, value));
-      camera.updateProjectionMatrix();
+      manualZoom = Math.max(1, Math.min(1.3, value));
+      if (!focusId && !cameraTransition) {
+        camera.zoom = BASE_CAMERA_ZOOM * manualZoom;
+        camera.updateProjectionMatrix();
+      }
       dirty = true;
     },
     stats() {
