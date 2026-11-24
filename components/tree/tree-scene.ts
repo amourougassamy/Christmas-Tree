@@ -1,13 +1,17 @@
 import {
+  ACESFilmicToneMapping,
   AmbientLight,
   BoxGeometry,
+  BufferGeometry,
   Color,
   ConeGeometry,
   CylinderGeometry,
   DirectionalLight,
+  DoubleSide,
   Group,
   HemisphereLight,
   ExtrudeGeometry,
+  Float32BufferAttribute,
   Shape,
   PointLight,
   InstancedMesh,
@@ -19,7 +23,7 @@ import {
   MeshPhysicalMaterial,
   MeshStandardMaterial,
   Object3D,
-  PCFShadowMap,
+  PCFSoftShadowMap,
   PerspectiveCamera,
   PlaneGeometry,
   Quaternion,
@@ -65,10 +69,11 @@ export type TreeSceneStats = {
 
 export type TreeScene = {
   sync(ornaments: readonly SceneOrnament[], arrivalId?: string | null): void;
-  pointerDown(x: number): void;
-  pointerMove(x: number): void;
+  pointerDown(x: number, y: number): void;
+  pointerMove(x: number, y: number): void;
   pointerUp(): void;
   nudge(direction: -1 | 1): void;
+  pan(delta: number): void;
   zoom(value: number): void;
   stats(): TreeSceneStats;
   dispose(): void;
@@ -86,6 +91,7 @@ type SlotEntry = {
 const PLACEHOLDER_PALETTE = ["#b51f32", "#e3b74f", "#d8e4eb", "#276451", "#c5352e"];
 const PLACEHOLDER_RADIUS = 0.26;
 const STRING_RADIUS = 0.007;
+const ORNAMENT_DANGLE = 0.1;
 const LOAD_CONCURRENCY = 3;
 const FOV = 30;
 const ELEVATION = (5 * Math.PI) / 180;
@@ -109,7 +115,7 @@ function disposeObject(root: Object3D) {
 
 function addFoliage(tree: Group, occluders: Object3D[], onTextureReady: () => void) {
   const trunk = new Mesh(
-    new CylinderGeometry(0.07, TRUNK.radiusBottom * 0.7, STAR_Y - TRUNK.bottomY, 14),
+    new CylinderGeometry(0.07, TRUNK.radiusBottom * 0.7, STAR_Y - TRUNK.bottomY, 28),
     new MeshStandardMaterial({ color: "#563a2a", roughness: 0.92 }),
   );
   trunk.position.y = (TRUNK.bottomY + STAR_Y) / 2;
@@ -138,7 +144,7 @@ function addFoliage(tree: Group, occluders: Object3D[], onTextureReady: () => vo
       new Vector3(radius, direction.length(), radius),
     ));
   };
-  const greens = ["#153c2c", "#24543b", "#376749", "#497650", "#608156"];
+  const greens = ["#123f28", "#1b5231", "#28643b", "#39794a", "#4f8c59", "#6aa36d"];
   const needle = (from: Vector3, direction: Vector3, length: number) => {
     segment(from, from.clone().addScaledVector(direction.normalize(), length), 0.007 + random() * 0.006, needleMatrices);
     needleColors.push(new Color(greens[Math.floor(random() * greens.length)]));
@@ -152,43 +158,43 @@ function addFoliage(tree: Group, occluders: Object3D[], onTextureReady: () => vo
       point.y -= Math.sin(t * Math.PI) * 0.2 * fullness;
       return point;
     };
-    for (let section = 0; section < 6; section += 1) {
-      segment(branchPoint(section / 6), branchPoint((section + 1) / 6),
-        (0.038 - section * 0.005) * fullness, woodMatrices);
+    for (let section = 0; section < 8; section += 1) {
+      segment(branchPoint(section / 8), branchPoint((section + 1) / 8),
+        (0.038 - section * 0.0038) * fullness, woodMatrices);
     }
     // Fir sprays lie along the twig rather than forming upright spikes.
     // Mature shoots sag; only the final few centimetres lift toward the light.
-    for (let step = 1; step <= 10; step += 1) {
-      const t = step / 11;
+    for (let step = 1; step <= 12; step += 1) {
+      const t = step / 13;
       const origin = branchPoint(t);
       for (const side of [-1, 1]) {
         const spread = (1 - t) * 0.78 * fullness + 0.1;
         const end = origin.clone()
           .addScaledVector(sideways, side * spread)
           .addScaledVector(radial, 0.22 + random() * 0.18);
-        end.y -= 0.08 + random() * 0.14;
+        end.y -= 0.03 + random() * 0.09;
         const shootPoint = (u: number) => {
           const point = origin.clone().lerp(end, u);
           point.y -= Math.sin(u * Math.PI) * 0.09;
-          point.y += Math.max(0, u - 0.8) * 0.3;
+          point.y += Math.max(0, u - 0.72) * 0.52;
           return point;
         };
-        for (let section = 0; section < 3; section += 1) {
-          segment(shootPoint(section / 3), shootPoint((section + 1) / 3),
-            (0.012 - section * 0.003) * fullness, woodMatrices);
+        for (let section = 0; section < 4; section += 1) {
+          segment(shootPoint(section / 4), shootPoint((section + 1) / 4),
+            (0.012 - section * 0.0023) * fullness, woodMatrices);
         }
         const tangent = end.clone().sub(origin).normalize();
         const lateral = new Vector3().crossVectors(tangent, up).normalize();
         const normal = new Vector3().crossVectors(lateral, tangent).normalize();
-        for (let n = 0; n < 15; n += 1) {
-          const u = (n + random() * 0.4) / 15;
+        for (let n = 0; n < 18; n += 1) {
+          const u = (n + random() * 0.4) / 18;
           const point = shootPoint(u);
           // Alternating needles form a broad, flat fan, with a smaller
           // scattered underside row for depth and natural irregularity.
           for (const direction of [-1, 1]) {
             const spray = lateral.clone().multiplyScalar(direction * (0.8 + random() * 0.2))
               .addScaledVector(tangent, 0.25 + random() * 0.35)
-              .addScaledVector(normal, (random() - 0.55) * 0.5);
+              .addScaledVector(normal, (random() - 0.48) * 0.24);
             needle(point, spray, (0.15 + random() * 0.12) * fullness * (1 - u * 0.4));
           }
           if (n % 2 === 0) {
@@ -210,7 +216,7 @@ function addFoliage(tree: Group, occluders: Object3D[], onTextureReady: () => vo
     }
     // Overlapping, staggered whorls break up the tiered silhouette and fill
     // the space between outer branches with a dense, irregular canopy.
-    const count = 18 - layer;
+    const count = 20 - layer;
     for (let row = 0; row < 3; row += 1) {
       for (let i = 0; i < count; i += 1) {
         const angle = (i + row * 0.43) / count * Math.PI * 2 + tier.rotationY;
@@ -234,16 +240,16 @@ function addFoliage(tree: Group, occluders: Object3D[], onTextureReady: () => vo
     bough(new Vector3(Math.sin(angle) * radius, crown.baseY + 0.65 + t * 0.85, Math.cos(angle) * radius), angle, 0.4);
   }
   const branches = new InstancedMesh(
-    new CylinderGeometry(0.35, 1, 1, 5),
-    new MeshStandardMaterial({ color: "#71543b", roughness: 1 }),
+    new CylinderGeometry(0.35, 1, 1, 10),
+    new MeshStandardMaterial({ color: "#71543b", roughness: 0.88 }),
     woodMatrices.length,
   );
   woodMatrices.forEach((matrix, i) => branches.setMatrixAt(i, matrix));
   branches.castShadow = branches.receiveShadow = true;
   tree.add(branches);
   const needles = new InstancedMesh(
-    new ConeGeometry(1, 1, 4),
-    new MeshStandardMaterial({ color: "#ffffff", roughness: 0.92 }),
+    new ConeGeometry(1, 1, 6),
+    new MeshPhysicalMaterial({ color: "#ffffff", roughness: 0.72, clearcoat: 0.18, clearcoatRoughness: 0.68 }),
     needleMatrices.length,
   );
   needleMatrices.forEach((matrix, i) => {
@@ -337,6 +343,55 @@ function addFoliage(tree: Group, occluders: Object3D[], onTextureReady: () => vo
   tree.add(bulbs);
 }
 
+function createRibbonGeometry(width: number, radialOffset: number) {
+  const geometry = new BufferGeometry();
+  const positions: number[] = [];
+  const indices: number[] = [];
+  const samples = 220;
+  const lowY = TREE_TIERS[0].baseY + 0.16;
+  const highY = STAR_Y - 0.62;
+  for (let index = 0; index < samples; index += 1) {
+    const t = index / (samples - 1);
+    const y = lowY + (highY - lowY) * t;
+    const angle = -0.45 + t * Math.PI * 7;
+    let canopyRadius = 0;
+    for (const tier of TREE_TIERS) canopyRadius = Math.max(canopyRadius, coneRadiusAt(tier, y));
+    const radius = canopyRadius + radialOffset;
+    const wave = Math.sin(t * Math.PI * 15) * 0.055;
+    for (const edge of [-1, 1]) {
+      positions.push(Math.sin(angle) * radius, y + wave + edge * width / 2, Math.cos(angle) * radius);
+    }
+    if (index > 0) {
+      const offset = index * 2;
+      indices.push(offset - 2, offset - 1, offset, offset - 1, offset + 1, offset);
+    }
+  }
+  geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function addTreeRibbon(tree: Group) {
+  const redEdge = new Mesh(
+    createRibbonGeometry(0.34, 0.24),
+    new MeshPhysicalMaterial({
+      color: "#9d2636", roughness: 0.36, clearcoat: 0.72,
+      clearcoatRoughness: 0.28, side: DoubleSide,
+    }),
+  );
+  const champagne = new Mesh(
+    createRibbonGeometry(0.23, 0.265),
+    new MeshPhysicalMaterial({
+      color: "#d8b668", metalness: 0.22, roughness: 0.3,
+      clearcoat: 0.85, clearcoatRoughness: 0.22, side: DoubleSide,
+    }),
+  );
+  redEdge.castShadow = redEdge.receiveShadow = true;
+  champagne.castShadow = champagne.receiveShadow = true;
+  tree.add(redEdge, champagne);
+}
+
 /** Stationary snow surface and a small companion behind the community tree. */
 function addWinterGround(scene: Scene) {
   const ground = new Mesh(
@@ -401,18 +456,18 @@ function addWinterGround(scene: Scene) {
 
 /** Wrapped gifts sit on the ground just outside the lowest ornaments. */
 const GIFTS = [
-  { angle: 0.35, radius: 4.85, size: [1.05, 0.72, 0.82], color: "#b94736", ribbon: "#f1cf72", turn: -0.12, round: false, dots: false, bottom: 0 },
-  { angle: -0.5, radius: 4.7, size: [0.92, 0.5, 0.72], color: "#e6d7ad", ribbon: "#2f7055", turn: 0.16, round: false, dots: true, bottom: 0 },
-  { angle: 2.3, radius: 4.8, size: [0.76, 1.05, 0.68], color: "#2f7055", ribbon: "#e8c766", turn: -0.08, round: false, dots: false, bottom: 0 },
-  { angle: 3.6, radius: 4.75, size: [1.1, 0.42, 0.7], color: "#c98b72", ribbon: "#fff0c4", turn: 0.24, round: false, dots: true, bottom: 0 },
-  { angle: -0.95, radius: 4.65, size: [0.72, 0.58, 0.72], color: "#6d8599", ribbon: "#e9d6a8", turn: 0.1, round: true, dots: false, bottom: 0 },
-  { angle: 0.95, radius: 4.8, size: [0.65, 0.95, 0.6], color: "#883e51", ribbon: "#f4c7b0", turn: -0.2, round: false, dots: true, bottom: 0 },
-  { angle: -1.5, radius: 4.55, size: [1.15, 0.36, 0.78], color: "#d4ab70", ribbon: "#a22f3d", turn: 0.22, round: false, dots: false, bottom: 0 },
-  { angle: 1.52, radius: 4.65, size: [0.86, 0.55, 0.86], color: "#eee5ce", ribbon: "#a44443", turn: 0.12, round: true, dots: false, bottom: 0 },
-  { angle: 2.95, radius: 4.65, size: [0.62, 0.8, 0.6], color: "#688072", ribbon: "#f6dfad", turn: -0.13, round: false, dots: true, bottom: 0 },
-  { angle: 4.25, radius: 4.65, size: [0.82, 0.52, 0.76], color: "#a9363e", ribbon: "#e4c46c", turn: -0.2, round: false, dots: false, bottom: 0 },
-  { angle: -0.5, radius: 4.7, size: [0.6, 0.35, 0.48], color: "#b84a49", ribbon: "#f7dfb5", turn: -0.12, round: false, dots: false, bottom: 0.53 },
-  { angle: -1.5, radius: 4.55, size: [0.63, 0.48, 0.63], color: "#e4d7c2", ribbon: "#4b6f63", turn: -0.15, round: true, dots: false, bottom: 0.39 },
+  { angle: -0.98, radius: 4.28, size: [1.02, 0.62, 0.78], color: "#a92632", ribbon: "#d8b45e", turn: 0.12, round: false, dots: false, bottom: 0 },
+  { angle: -0.7, radius: 4.12, size: [0.88, 0.78, 0.76], color: "#1f613b", ribbon: "#dfbd69", turn: -0.1, round: false, dots: false, bottom: 0 },
+  { angle: -0.4, radius: 4.22, size: [1.18, 0.5, 0.86], color: "#d4af67", ribbon: "#a72936", turn: 0.16, round: false, dots: true, bottom: 0 },
+  { angle: -0.1, radius: 4.4, size: [1.28, 0.7, 0.9], color: "#b72b35", ribbon: "#e4c373", turn: -0.08, round: false, dots: false, bottom: 0 },
+  { angle: 0.22, radius: 4.18, size: [0.92, 0.82, 0.78], color: "#276b42", ribbon: "#dcb866", turn: 0.14, round: false, dots: false, bottom: 0 },
+  { angle: 0.52, radius: 4.27, size: [1.08, 0.56, 0.82], color: "#e3d4ae", ribbon: "#a82734", turn: -0.15, round: false, dots: true, bottom: 0 },
+  { angle: 0.8, radius: 4.18, size: [0.78, 0.94, 0.72], color: "#a92734", ribbon: "#d8b45e", turn: 0.08, round: false, dots: false, bottom: 0 },
+  { angle: 1.03, radius: 4.32, size: [0.92, 0.52, 0.76], color: "#24633d", ribbon: "#e2c071", turn: -0.12, round: false, dots: false, bottom: 0 },
+  { angle: -0.7, radius: 4.12, size: [0.58, 0.38, 0.52], color: "#dfd2ad", ribbon: "#a62a35", turn: 0.08, round: true, dots: false, bottom: 0.82 },
+  { angle: -0.4, radius: 4.22, size: [0.62, 0.44, 0.56], color: "#b42b35", ribbon: "#dfbd69", turn: -0.14, round: false, dots: false, bottom: 0.54 },
+  { angle: 0.22, radius: 4.18, size: [0.62, 0.4, 0.56], color: "#d8b66e", ribbon: "#a72a36", turn: 0.1, round: true, dots: false, bottom: 0.86 },
+  { angle: 0.8, radius: 4.18, size: [0.56, 0.34, 0.5], color: "#e7d9b6", ribbon: "#24633d", turn: -0.1, round: false, dots: false, bottom: 0.98 },
 ] as const;
 const GIFT_REACH = Math.max(...GIFTS.map((gift) => gift.radius + Math.hypot(gift.size[0], gift.size[2]) / 2));
 const GIFT_HEIGHT = Math.max(...GIFTS.map((gift) => gift.bottom + gift.size[1] + 0.2));
@@ -423,13 +478,13 @@ function addGifts(tree: Group) {
     const [width, height, depth] = gift.size;
     group.position.set(Math.sin(gift.angle) * gift.radius, GROUND_Y + gift.bottom + height / 2, Math.cos(gift.angle) * gift.radius);
     group.rotation.y = gift.angle + gift.turn;
-    const wrapping = new MeshStandardMaterial({ color: gift.color, roughness: 0.72 });
-    const ribbon = new MeshStandardMaterial({ color: gift.ribbon, roughness: 0.48, metalness: 0.08 });
+    const wrapping = new MeshPhysicalMaterial({ color: gift.color, roughness: 0.52, clearcoat: 0.35, clearcoatRoughness: 0.55 });
+    const ribbon = new MeshPhysicalMaterial({ color: gift.ribbon, roughness: 0.3, metalness: 0.14, clearcoat: 0.75, clearcoatRoughness: 0.25 });
     const box = new Mesh(gift.round
-      ? new CylinderGeometry(width / 2, width / 2, height, 28)
+      ? new CylinderGeometry(width / 2, width / 2, height, 40)
       : new BoxGeometry(width, height, depth), wrapping);
     const lid = new Mesh(gift.round
-      ? new CylinderGeometry(width / 2 + 0.018, width / 2 + 0.018, 0.065, 28)
+      ? new CylinderGeometry(width / 2 + 0.018, width / 2 + 0.018, 0.065, 40)
       : new BoxGeometry(width + 0.035, 0.065, depth + 0.035), wrapping);
     lid.position.y = height / 2;
     const verticalRibbon = new Mesh(new BoxGeometry(width * 0.13, height + 0.075, gift.round ? width * 0.97 : depth + 0.025), ribbon);
@@ -437,18 +492,18 @@ function addGifts(tree: Group) {
     group.add(box, lid, verticalRibbon, crossRibbon);
     // Two satin loops and a knot make each parcel feel hand wrapped.
     for (const side of [-1, 1]) {
-      const bow = new Mesh(new TorusGeometry(width * 0.12, 0.025, 5, 16), ribbon);
+      const bow = new Mesh(new TorusGeometry(width * 0.12, 0.025, 10, 32), ribbon);
       bow.scale.set(1.25, 0.65, 1);
       bow.rotation.x = -Math.PI / 2 + side * 0.3;
       bow.rotation.y = side * 0.2;
       bow.position.set(side * width * 0.12, height / 2 + 0.1, 0);
       group.add(bow);
     }
-    const knot = new Mesh(new SphereGeometry(0.055, 8, 6), ribbon);
+    const knot = new Mesh(new SphereGeometry(0.055, 16, 12), ribbon);
     knot.position.y = height / 2 + 0.105;
     group.add(knot);
     if (gift.dots) {
-      const dotGeometry = new SphereGeometry(0.025, 6, 4);
+      const dotGeometry = new SphereGeometry(0.025, 10, 8);
       for (const face of [-1, 1]) {
         for (let row = 0; row < 3; row += 1) {
           for (let col = 0; col < 4; col += 1) {
@@ -491,10 +546,12 @@ export function createTreeScene(options: {
   camera.zoom = 1.25;
   const renderer = new WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
   renderer.setClearColor(0x000000, 0);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 3));
   renderer.outputColorSpace = SRGBColorSpace;
+  renderer.toneMapping = ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = PCFShadowMap;
+  renderer.shadowMap.type = PCFSoftShadowMap;
   renderer.domElement.setAttribute("aria-hidden", "true");
   renderer.domElement.style.display = "block";
   mount.appendChild(renderer.domElement);
@@ -506,7 +563,7 @@ export function createTreeScene(options: {
   const key = new DirectionalLight("#efb58b", 1.65);
   key.position.set(9, 5, -3);
   key.castShadow = true;
-  key.shadow.mapSize.set(1024, 1024);
+  key.shadow.mapSize.set(2048, 2048);
   key.shadow.camera.left = -10;
   key.shadow.camera.right = 10;
   key.shadow.camera.top = 9;
@@ -528,14 +585,15 @@ export function createTreeScene(options: {
   const canopy = new Group();
   tree.add(canopy);
   addFoliage(canopy, occluders, () => { dirty = true; });
+  addTreeRibbon(canopy);
   const sparkles = createArrivalSparkles(canopy);
   addGifts(tree);
 
   // Placeholders and hooks are instanced per slot: two draw calls for all 60.
-  const placeholderGeometry = new SphereGeometry(PLACEHOLDER_RADIUS, 20, 14);
+  const placeholderGeometry = new SphereGeometry(PLACEHOLDER_RADIUS, 32, 24);
   const placeholderMaterial = new MeshPhysicalMaterial({ color: "#ffffff", emissive: "#e9b955", emissiveIntensity: 0.16, clearcoat: 0.65, roughness: 0.3, metalness: 0.08 });
   const placeholders = new InstancedMesh(placeholderGeometry, placeholderMaterial, TREE_ANCHORS.length);
-  const hookGeometry = new CylinderGeometry(STRING_RADIUS, STRING_RADIUS, 1, 5, 1, true);
+  const hookGeometry = new CylinderGeometry(STRING_RADIUS, STRING_RADIUS, 1, 10, 1, true);
   const hookMaterial = new MeshStandardMaterial({ color: "#d8c08a", metalness: 0.6, roughness: 0.4 });
   const hooks = new InstancedMesh(hookGeometry, hookMaterial, TREE_ANCHORS.length);
   const bells = new InstancedMesh(
@@ -545,17 +603,17 @@ export function createTreeScene(options: {
       new Vector2(0.2, -0.18), new Vector2(0.25, -0.22),
       new Vector2(0.25, -0.25), new Vector2(0.19, -0.25),
       new Vector2(0.16, -0.18), new Vector2(0, -0.17),
-    ], 16),
+    ], 32),
     new MeshPhysicalMaterial({ color: "#dfad43", emissive: "#e9b955", emissiveIntensity: 0.16, metalness: 0.72, roughness: 0.25, clearcoat: 0.6 }),
     TREE_ANCHORS.length,
   );
   const icicles = new InstancedMesh(
-    new ConeGeometry(0.12, 0.58, 8).rotateZ(Math.PI),
+    new ConeGeometry(0.12, 0.58, 16).rotateZ(Math.PI),
     new MeshPhysicalMaterial({ color: "#d8e9f0", emissive: "#e9b955", emissiveIntensity: 0.16, metalness: 0.32, roughness: 0.18, clearcoat: 1 }),
     TREE_ANCHORS.length,
   );
   const caps = new InstancedMesh(
-    new CylinderGeometry(0.065, 0.075, 0.085, 10),
+    new CylinderGeometry(0.065, 0.075, 0.085, 18),
     new MeshStandardMaterial({ color: "#d6ad55", metalness: 0.7, roughness: 0.3 }),
     TREE_ANCHORS.length,
   );
@@ -577,6 +635,7 @@ export function createTreeScene(options: {
   const hookMatrix = (anchor: TreeAnchor) => {
     const tip = new Vector3(...anchor.tip);
     const eyelet = new Vector3(...anchor.position);
+    eyelet.y -= ORNAMENT_DANGLE;
     const direction = tip.clone().sub(eyelet);
     const length = direction.length();
     scratchQuat.setFromUnitVectors(up, direction.normalize());
@@ -586,7 +645,7 @@ export function createTreeScene(options: {
     const index = anchor.slot - 1;
     const kind = index % 3;
     const centerX = anchor.position[0] + Math.sin(sway) * PLACEHOLDER_RADIUS;
-    const centerY = anchor.position[1] - PLACEHOLDER_RADIUS - 0.04;
+    const centerY = anchor.position[1] - ORNAMENT_DANGLE - PLACEHOLDER_RADIUS - 0.04;
     placeholders.setMatrixAt(index, visible && kind === 0
       ? scratch.makeRotationZ(sway).setPosition(centerX, centerY, anchor.position[2]) : zeroMatrix);
     bells.setMatrixAt(index, visible && kind === 1
@@ -594,7 +653,7 @@ export function createTreeScene(options: {
     icicles.setMatrixAt(index, visible && kind === 2
       ? scratch.makeRotationZ(sway).setPosition(centerX, centerY - 0.02, anchor.position[2]) : zeroMatrix);
     caps.setMatrixAt(index, visible
-      ? scratch.makeTranslation(anchor.position[0], anchor.position[1] - 0.045, anchor.position[2]) : zeroMatrix);
+      ? scratch.makeTranslation(anchor.position[0], anchor.position[1] - ORNAMENT_DANGLE - 0.045, anchor.position[2]) : zeroMatrix);
     for (const mesh of [placeholders, bells, icicles, caps]) mesh.instanceMatrix.needsUpdate = true;
   };
   const setHook = (anchor: TreeAnchor, visible: boolean) => {
@@ -608,6 +667,20 @@ export function createTreeScene(options: {
 
   const spin = createSpinState(-0.35);
   tree.rotation.y = spin.angle;
+  let zoomValue = 1;
+  let panY = 0;
+  let baseCameraY = 0;
+  let baseTargetY = 0;
+
+  const maxPan = () => 4 * ((zoomValue - 1) / 1.5);
+  const applyCameraPan = () => {
+    const limit = maxPan();
+    panY = Math.max(-limit, Math.min(limit, panY));
+    camera.position.y = baseCameraY + panY;
+    camera.lookAt(0, baseTargetY + panY, 0);
+    camera.updateProjectionMatrix();
+    dirty = true;
+  };
 
   const loader = new GLTFLoader();
   loader.setMeshoptDecoder(MeshoptDecoder);
@@ -675,6 +748,7 @@ export function createTreeScene(options: {
       const anchor = TREE_ANCHORS[slot - 1];
       const group = new Group();
       group.position.set(...anchor.position);
+      group.position.y -= ORNAMENT_DANGLE;
       group.rotation.y = anchor.rotationY;
       canopy.add(group);
       const entry: SlotEntry = { ornament, anchor, group, model: null, state: "pending", celebrate: ornament.id === arrivalId };
@@ -706,8 +780,10 @@ export function createTreeScene(options: {
       maxHeightFraction: portrait ? 0.7 : 0.78,
       maxWidthFraction: portrait ? 0.86 : 0.8,
     });
-    camera.position.set(0, targetY + Math.sin(ELEVATION) * distance, Math.cos(ELEVATION) * distance);
-    camera.lookAt(0, targetY, 0);
+    baseCameraY = targetY + Math.sin(ELEVATION) * distance;
+    baseTargetY = targetY;
+    camera.position.set(0, baseCameraY, Math.cos(ELEVATION) * distance);
+    applyCameraPan();
     camera.near = Math.max(0.5, distance - 12);
     camera.far = distance + 12;
     camera.updateProjectionMatrix();
@@ -764,6 +840,7 @@ export function createTreeScene(options: {
   let last = performance.now();
   let lastMoveAt = 0;
   let lastX = 0;
+  let lastY = 0;
   const render = (now: number) => {
     frame = requestAnimationFrame(render);
     const dt = Math.min((now - last) / 1000, 0.1);
@@ -771,8 +848,8 @@ export function createTreeScene(options: {
     if (stepSpin(spin, dt, !reducedMotion)) dirty = true;
     const time = now / 1000;
     if (!reducedMotion) {
-      canopy.rotation.z = Math.sin(time * 0.45) * 0.003;
-      canopy.rotation.x = Math.sin(time * 0.32 + 1) * 0.0015;
+      canopy.rotation.z = Math.sin(time * 0.34) * 0.0045 + Math.sin(time * 0.13 + 1.4) * 0.002;
+      canopy.rotation.x = Math.sin(time * 0.27 + 1) * 0.0022 + Math.sin(time * 0.11) * 0.001;
       for (const entry of slots.values()) {
         entry.group.rotation.z = Math.sin(time * 0.85 + entry.anchor.slot * 1.7) * 0.035;
         entry.group.rotation.x = Math.sin(time * 0.63 + entry.anchor.slot) * 0.018;
@@ -798,16 +875,22 @@ export function createTreeScene(options: {
 
   return {
     sync,
-    pointerDown(x) {
+    pointerDown(x, y) {
       beginDrag(spin);
       lastX = x;
+      lastY = y;
       lastMoveAt = performance.now();
     },
-    pointerMove(x) {
+    pointerMove(x, y) {
       if (!spin.dragging) return;
       const now = performance.now();
       dragBy(spin, x - lastX, (now - lastMoveAt) / 1000);
+      if (zoomValue > 1) {
+        panY += (y - lastY) * (0.014 / Math.sqrt(zoomValue));
+        applyCameraPan();
+      }
       lastX = x;
+      lastY = y;
       lastMoveAt = now;
       dirty = true;
     },
@@ -818,10 +901,16 @@ export function createTreeScene(options: {
     nudge(direction) {
       nudge(spin, direction);
     },
+    pan(delta) {
+      if (zoomValue <= 1) return;
+      panY += delta;
+      applyCameraPan();
+    },
     zoom(value) {
-      camera.zoom = 1.25 * Math.max(1, Math.min(2.5, value));
-      camera.updateProjectionMatrix();
-      dirty = true;
+      zoomValue = Math.max(1, Math.min(2.5, value));
+      if (zoomValue === 1) panY = 0;
+      camera.zoom = 1.25 * zoomValue;
+      applyCameraPan();
     },
     stats() {
       let loaded = 0;

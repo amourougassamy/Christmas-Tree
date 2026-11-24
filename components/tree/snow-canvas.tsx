@@ -2,27 +2,30 @@
 
 import { useEffect, useRef } from "react";
 
-type Flake = { x: number; y: number; r: number; speed: number; sway: number; phase: number; alpha: number };
+type SnowLayer = "background" | "foreground";
+type Flake = { x: number; y: number; r: number; speed: number; sway: number; phase: number; alpha: number; blur: number };
 
 const FLAKES_PER_MEGAPIXEL = 150;
 const MAX_FLAKES = 260;
 
-function makeFlake(width: number, height: number, anywhere: boolean): Flake {
-  const r = 0.6 + Math.random() ** 2 * 2.2;
+function makeFlake(width: number, height: number, anywhere: boolean, layer: SnowLayer): Flake {
+  const foreground = layer === "foreground";
+  const r = foreground ? 2.4 + Math.random() ** 1.7 * 4.8 : 0.55 + Math.random() ** 2 * 2.4;
   return {
     x: Math.random() * width,
     y: anywhere ? Math.random() * height : -r * 2,
     r,
-    // Bigger flakes are "closer": a little faster and brighter.
-    speed: 9 + r * 7 + Math.random() * 6,
-    sway: 6 + Math.random() * 14,
+    // Size, speed and softness work together as a simple depth cue.
+    speed: foreground ? 25 + r * 7 + Math.random() * 12 : 8 + r * 7 + Math.random() * 6,
+    sway: foreground ? 14 + Math.random() * 28 : 5 + Math.random() * 14,
     phase: Math.random() * Math.PI * 2,
-    alpha: 0.25 + (r / 2.8) * 0.5,
+    alpha: foreground ? 0.34 + Math.random() * 0.34 : 0.2 + (r / 2.95) * 0.5,
+    blur: foreground ? Math.max(0, (r - 3.2) * 0.18) : 0,
   };
 }
 
-/** Full-screen 2D snowfall behind the tree. Cheap, DPR-capped, pauses when hidden. */
-export function SnowCanvas({ className }: { className?: string }) {
+/** Layered snowfall. Two canvases create distant and close depth planes. */
+export function SnowCanvas({ className, layer = "background" }: { className?: string; layer?: SnowLayer }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -43,11 +46,13 @@ export function SnowCanvas({ className }: { className?: string }) {
       context.fillStyle = "#fffdf7";
       for (const flake of flakes) {
         context.globalAlpha = flake.alpha;
+        context.filter = flake.blur ? `blur(${flake.blur}px)` : "none";
         context.beginPath();
-        context.arc(flake.x + Math.sin(time * 0.6 + flake.phase) * flake.sway, flake.y, flake.r, 0, Math.PI * 2);
+        context.arc(flake.x + Math.sin(time * (layer === "foreground" ? 0.42 : 0.6) + flake.phase) * flake.sway, flake.y, flake.r, 0, Math.PI * 2);
         context.fill();
       }
       context.globalAlpha = 1;
+      context.filter = "none";
     };
 
     const resize = () => {
@@ -57,8 +62,10 @@ export function SnowCanvas({ className }: { className?: string }) {
       canvas.width = Math.round(width * ratio);
       canvas.height = Math.round(height * ratio);
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
-      const count = Math.min(MAX_FLAKES, Math.round(((width * height) / 1e6) * FLAKES_PER_MEGAPIXEL) + 40);
-      flakes = Array.from({ length: count }, () => makeFlake(width, height, true));
+      const count = layer === "foreground"
+        ? Math.max(18, Math.round(((width * height) / 1e6) * 28))
+        : Math.min(MAX_FLAKES, Math.round(((width * height) / 1e6) * FLAKES_PER_MEGAPIXEL) + 40);
+      flakes = Array.from({ length: count }, () => makeFlake(width, height, true, layer));
       draw();
     };
 
@@ -70,7 +77,7 @@ export function SnowCanvas({ className }: { className?: string }) {
       for (let i = 0; i < flakes.length; i += 1) {
         const flake = flakes[i];
         flake.y += flake.speed * dt;
-        if (flake.y - flake.r > height) flakes[i] = makeFlake(width, height, false);
+        if (flake.y - flake.r > height) flakes[i] = makeFlake(width, height, false, layer);
       }
       draw();
     };
@@ -95,7 +102,7 @@ export function SnowCanvas({ className }: { className?: string }) {
       document.removeEventListener("visibilitychange", start);
       reducedMotion.removeEventListener("change", start);
     };
-  }, []);
+  }, [layer]);
 
   return <canvas ref={canvasRef} aria-hidden="true" className={className} />;
 }

@@ -120,9 +120,9 @@ html {
   background-size: cover;
 }
 
-/* Horizontal drags spin the tree; vertical swipes still scroll the page. */
+/* Horizontal drags spin; vertical drags pan the close-up view. */
 .tree-stage {
-  touch-action: pan-y;
+  touch-action: none;
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;

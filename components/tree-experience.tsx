@@ -79,7 +79,7 @@ export function TreeExperience({ ornaments, arrivalId }: { ornaments: Ornament[]
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
     if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
     pointerRef.current = { id: event.pointerId, startX: event.clientX, startY: event.clientY, dragged: false };
-    sceneRef.current?.pointerDown(event.clientX);
+    sceneRef.current?.pointerDown(event.clientX, event.clientY);
   };
   const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
     const pointer = pointerRef.current;
@@ -88,7 +88,7 @@ export function TreeExperience({ ornaments, arrivalId }: { ornaments: Ornament[]
       pointer.dragged = true;
       event.currentTarget.setPointerCapture(event.pointerId);
     }
-    sceneRef.current?.pointerMove(event.clientX);
+    sceneRef.current?.pointerMove(event.clientX, event.clientY);
   };
   const onPointerEnd = (event: PointerEvent<HTMLDivElement>) => {
     const pointer = pointerRef.current;
@@ -101,6 +101,12 @@ export function TreeExperience({ ornaments, arrivalId }: { ornaments: Ornament[]
     if (event.key === "+" || event.key === "=" || event.key === "-") {
       event.preventDefault();
       adjustZoom(event.key === "-" ? -0.05 : 0.05);
+      return;
+    }
+    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      if (zoom <= 1) return;
+      event.preventDefault();
+      sceneRef.current?.pan(event.key === "ArrowUp" ? 0.6 : -0.6);
       return;
     }
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
@@ -118,7 +124,7 @@ export function TreeExperience({ ornaments, arrivalId }: { ornaments: Ornament[]
         tabIndex={0}
         role="group"
         aria-roledescription="3D tree"
-        aria-label="Community tree. Drag sideways or use the left and right arrow keys to spin it."
+        aria-label="Community tree. Drag sideways to spin it. When zoomed in, drag vertically or use the up and down arrow keys to explore it."
         className="tree-stage absolute inset-0 z-[1] outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#426052]/60"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -166,23 +172,32 @@ export function TreeExperience({ ornaments, arrivalId }: { ornaments: Ornament[]
         </div>
       </div>
 
+      <SnowCanvas layer="foreground" className="pointer-events-none absolute inset-0 z-10 h-full w-full" />
+
       <header className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-6 p-5 sm:p-8">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-[#e3d2c7]">MKA community tree</p>
           <h1 className="mt-2 font-serif text-2xl tracking-[-0.03em] sm:text-4xl">Made brighter together.</h1>
         </div>
         <p className="max-w-40 text-right text-[11px] leading-relaxed text-[#f0e4df]/85 sm:max-w-60 sm:text-xs">
-          Drag sideways to spin the tree · tap an ornament to see who made it
+          Drag sideways to spin · zoom in and drag vertically to explore
         </p>
       </header>
 
       <HolidayMusic />
 
-      <div
-        role="group"
-        aria-label="Tree zoom"
-        className="absolute bottom-20 right-5 z-20 flex items-center rounded-full border border-[#547064]/20 bg-white/65 p-1 text-[#426052] shadow-sm backdrop-blur sm:right-8"
-      >
+      <div className="absolute bottom-20 right-5 z-20 flex items-center gap-2 sm:right-8">
+        <div role="group" aria-label="Pan up and down"
+          className="flex items-center rounded-full border border-[#547064]/20 bg-white/65 p-1 text-[#426052] shadow-sm backdrop-blur">
+          <button type="button" aria-label="Pan up" disabled={zoom <= 1}
+            onClick={() => sceneRef.current?.pan(0.6)}
+            className="flex h-9 w-9 items-center justify-center rounded-full text-base transition hover:bg-white/70 focus-visible:outline-2 focus-visible:outline-[#426052] disabled:opacity-30">↑</button>
+          <button type="button" aria-label="Pan down" disabled={zoom <= 1}
+            onClick={() => sceneRef.current?.pan(-0.6)}
+            className="flex h-9 w-9 items-center justify-center rounded-full text-base transition hover:bg-white/70 focus-visible:outline-2 focus-visible:outline-[#426052] disabled:opacity-30">↓</button>
+        </div>
+        <div role="group" aria-label="Tree zoom"
+          className="flex items-center rounded-full border border-[#547064]/20 bg-white/65 p-1 text-[#426052] shadow-sm backdrop-blur">
         <button type="button" aria-label="Zoom out" disabled={zoom <= 1}
           onClick={() => adjustZoom(-0.05)}
           className="flex h-9 w-9 items-center justify-center rounded-full text-xl transition hover:bg-white/70 focus-visible:outline-2 focus-visible:outline-[#426052] disabled:opacity-30">
@@ -194,6 +209,7 @@ export function TreeExperience({ ornaments, arrivalId }: { ornaments: Ornament[]
           className="flex h-9 w-9 items-center justify-center rounded-full text-xl transition hover:bg-white/70 focus-visible:outline-2 focus-visible:outline-[#426052] disabled:opacity-30">
           +
         </button>
+        </div>
       </div>
 
       <footer className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end justify-between gap-4 p-5 sm:p-8">
