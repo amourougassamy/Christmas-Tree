@@ -2,16 +2,13 @@ import {
   ACESFilmicToneMapping,
   AmbientLight,
   BoxGeometry,
-  BufferGeometry,
   Color,
   ConeGeometry,
   CylinderGeometry,
   DirectionalLight,
-  DoubleSide,
   Group,
   HemisphereLight,
   ExtrudeGeometry,
-  Float32BufferAttribute,
   Shape,
   PointLight,
   InstancedMesh,
@@ -90,6 +87,7 @@ type SlotEntry = {
 
 const PLACEHOLDER_PALETTE = ["#b51f32", "#e3b74f", "#d8e4eb", "#276451", "#c5352e"];
 const PLACEHOLDER_RADIUS = 0.26;
+const DEFAULT_ORNAMENT_SCALE = 0.7;
 const STRING_RADIUS = 0.007;
 const ORNAMENT_DANGLE = 0.1;
 const LOAD_CONCURRENCY = 3;
@@ -144,7 +142,7 @@ function addFoliage(tree: Group, occluders: Object3D[], onTextureReady: () => vo
       new Vector3(radius, direction.length(), radius),
     ));
   };
-  const greens = ["#123f28", "#1b5231", "#28643b", "#39794a", "#4f8c59", "#6aa36d"];
+  const greens = ["#143b27", "#1d4a2e", "#285838", "#326541", "#406f49", "#527d56"];
   const needle = (from: Vector3, direction: Vector3, length: number) => {
     segment(from, from.clone().addScaledVector(direction.normalize(), length), 0.007 + random() * 0.006, needleMatrices);
     needleColors.push(new Color(greens[Math.floor(random() * greens.length)]));
@@ -241,7 +239,7 @@ function addFoliage(tree: Group, occluders: Object3D[], onTextureReady: () => vo
   }
   const branches = new InstancedMesh(
     new CylinderGeometry(0.35, 1, 1, 10),
-    new MeshStandardMaterial({ color: "#71543b", roughness: 0.88 }),
+    new MeshStandardMaterial({ color: "#654a35", roughness: 0.98, metalness: 0 }),
     woodMatrices.length,
   );
   woodMatrices.forEach((matrix, i) => branches.setMatrixAt(i, matrix));
@@ -249,7 +247,7 @@ function addFoliage(tree: Group, occluders: Object3D[], onTextureReady: () => vo
   tree.add(branches);
   const needles = new InstancedMesh(
     new ConeGeometry(1, 1, 6),
-    new MeshPhysicalMaterial({ color: "#ffffff", roughness: 0.72, clearcoat: 0.18, clearcoatRoughness: 0.68 }),
+    new MeshStandardMaterial({ color: "#ffffff", roughness: 0.96, metalness: 0 }),
     needleMatrices.length,
   );
   needleMatrices.forEach((matrix, i) => {
@@ -343,55 +341,6 @@ function addFoliage(tree: Group, occluders: Object3D[], onTextureReady: () => vo
   tree.add(bulbs);
 }
 
-function createRibbonGeometry(width: number, radialOffset: number) {
-  const geometry = new BufferGeometry();
-  const positions: number[] = [];
-  const indices: number[] = [];
-  const samples = 220;
-  const lowY = TREE_TIERS[0].baseY + 0.16;
-  const highY = STAR_Y - 0.62;
-  for (let index = 0; index < samples; index += 1) {
-    const t = index / (samples - 1);
-    const y = lowY + (highY - lowY) * t;
-    const angle = -0.45 + t * Math.PI * 7;
-    let canopyRadius = 0;
-    for (const tier of TREE_TIERS) canopyRadius = Math.max(canopyRadius, coneRadiusAt(tier, y));
-    const radius = canopyRadius + radialOffset;
-    const wave = Math.sin(t * Math.PI * 15) * 0.055;
-    for (const edge of [-1, 1]) {
-      positions.push(Math.sin(angle) * radius, y + wave + edge * width / 2, Math.cos(angle) * radius);
-    }
-    if (index > 0) {
-      const offset = index * 2;
-      indices.push(offset - 2, offset - 1, offset, offset - 1, offset + 1, offset);
-    }
-  }
-  geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
-  geometry.setIndex(indices);
-  geometry.computeVertexNormals();
-  return geometry;
-}
-
-function addTreeRibbon(tree: Group) {
-  const redEdge = new Mesh(
-    createRibbonGeometry(0.34, 0.24),
-    new MeshPhysicalMaterial({
-      color: "#9d2636", roughness: 0.36, clearcoat: 0.72,
-      clearcoatRoughness: 0.28, side: DoubleSide,
-    }),
-  );
-  const champagne = new Mesh(
-    createRibbonGeometry(0.23, 0.265),
-    new MeshPhysicalMaterial({
-      color: "#d8b668", metalness: 0.22, roughness: 0.3,
-      clearcoat: 0.85, clearcoatRoughness: 0.22, side: DoubleSide,
-    }),
-  );
-  redEdge.castShadow = redEdge.receiveShadow = true;
-  champagne.castShadow = champagne.receiveShadow = true;
-  tree.add(redEdge, champagne);
-}
-
 /** Stationary snow surface and a small companion behind the community tree. */
 function addWinterGround(scene: Scene) {
   const ground = new Mesh(
@@ -456,18 +405,28 @@ function addWinterGround(scene: Scene) {
 
 /** Wrapped gifts sit on the ground just outside the lowest ornaments. */
 const GIFTS = [
-  { angle: -0.98, radius: 4.28, size: [1.02, 0.62, 0.78], color: "#a92632", ribbon: "#d8b45e", turn: 0.12, round: false, dots: false, bottom: 0 },
-  { angle: -0.7, radius: 4.12, size: [0.88, 0.78, 0.76], color: "#1f613b", ribbon: "#dfbd69", turn: -0.1, round: false, dots: false, bottom: 0 },
-  { angle: -0.4, radius: 4.22, size: [1.18, 0.5, 0.86], color: "#d4af67", ribbon: "#a72936", turn: 0.16, round: false, dots: true, bottom: 0 },
-  { angle: -0.1, radius: 4.4, size: [1.28, 0.7, 0.9], color: "#b72b35", ribbon: "#e4c373", turn: -0.08, round: false, dots: false, bottom: 0 },
-  { angle: 0.22, radius: 4.18, size: [0.92, 0.82, 0.78], color: "#276b42", ribbon: "#dcb866", turn: 0.14, round: false, dots: false, bottom: 0 },
-  { angle: 0.52, radius: 4.27, size: [1.08, 0.56, 0.82], color: "#e3d4ae", ribbon: "#a82734", turn: -0.15, round: false, dots: true, bottom: 0 },
-  { angle: 0.8, radius: 4.18, size: [0.78, 0.94, 0.72], color: "#a92734", ribbon: "#d8b45e", turn: 0.08, round: false, dots: false, bottom: 0 },
-  { angle: 1.03, radius: 4.32, size: [0.92, 0.52, 0.76], color: "#24633d", ribbon: "#e2c071", turn: -0.12, round: false, dots: false, bottom: 0 },
-  { angle: -0.7, radius: 4.12, size: [0.58, 0.38, 0.52], color: "#dfd2ad", ribbon: "#a62a35", turn: 0.08, round: true, dots: false, bottom: 0.82 },
-  { angle: -0.4, radius: 4.22, size: [0.62, 0.44, 0.56], color: "#b42b35", ribbon: "#dfbd69", turn: -0.14, round: false, dots: false, bottom: 0.54 },
-  { angle: 0.22, radius: 4.18, size: [0.62, 0.4, 0.56], color: "#d8b66e", ribbon: "#a72a36", turn: 0.1, round: true, dots: false, bottom: 0.86 },
-  { angle: 0.8, radius: 4.18, size: [0.56, 0.34, 0.5], color: "#e7d9b6", ribbon: "#24633d", turn: -0.1, round: false, dots: false, bottom: 0.98 },
+  { angle: -0.15, radius: 4.28, size: [1.02, 0.62, 0.78], color: "#a92632", ribbon: "#d8b45e", turn: 0.12, round: false, dots: false, bottom: 0 },
+  { angle: 0.65, radius: 4.12, size: [0.88, 0.78, 0.76], color: "#1f613b", ribbon: "#dfbd69", turn: -0.1, round: false, dots: false, bottom: 0 },
+  { angle: 1.45, radius: 4.22, size: [1.18, 0.5, 0.86], color: "#d4af67", ribbon: "#a72936", turn: 0.16, round: false, dots: true, bottom: 0 },
+  { angle: 2.25, radius: 4.4, size: [1.28, 0.7, 0.9], color: "#b72b35", ribbon: "#e4c373", turn: -0.08, round: false, dots: false, bottom: 0 },
+  { angle: 3.05, radius: 4.18, size: [0.92, 0.82, 0.78], color: "#276b42", ribbon: "#dcb866", turn: 0.14, round: false, dots: false, bottom: 0 },
+  { angle: 3.85, radius: 4.27, size: [1.08, 0.56, 0.82], color: "#e3d4ae", ribbon: "#a82734", turn: -0.15, round: false, dots: true, bottom: 0 },
+  { angle: 4.65, radius: 4.18, size: [0.78, 0.94, 0.72], color: "#a92734", ribbon: "#d8b45e", turn: 0.08, round: false, dots: false, bottom: 0 },
+  { angle: 5.45, radius: 4.32, size: [0.92, 0.52, 0.76], color: "#24633d", ribbon: "#e2c071", turn: -0.12, round: false, dots: false, bottom: 0 },
+  { angle: -0.15, radius: 4.28, size: [0.58, 0.38, 0.52], color: "#dfd2ad", ribbon: "#a62a35", turn: 0.08, round: true, dots: false, bottom: 0.66 },
+  { angle: 1.45, radius: 4.22, size: [0.62, 0.44, 0.56], color: "#b42b35", ribbon: "#dfbd69", turn: -0.14, round: false, dots: false, bottom: 0.54 },
+  { angle: 3.05, radius: 4.18, size: [0.62, 0.4, 0.56], color: "#d8b66e", ribbon: "#a72a36", turn: 0.1, round: true, dots: false, bottom: 0.86 },
+  { angle: 4.65, radius: 4.18, size: [0.56, 0.34, 0.5], color: "#e7d9b6", ribbon: "#24633d", turn: -0.1, round: false, dots: false, bottom: 0.98 },
+  { angle: 0.25, radius: 4.72, size: [0.84, 0.48, 0.68], color: "#e4d6b2", ribbon: "#a72936", turn: -0.18, round: false, dots: true, bottom: 0 },
+  { angle: 1.05, radius: 4.62, size: [0.72, 0.7, 0.66], color: "#b32935", ribbon: "#ddba66", turn: 0.2, round: true, dots: false, bottom: 0 },
+  { angle: 1.85, radius: 4.74, size: [1.02, 0.42, 0.76], color: "#23643e", ribbon: "#e1c06f", turn: -0.12, round: false, dots: false, bottom: 0 },
+  { angle: 2.65, radius: 4.64, size: [0.76, 0.66, 0.7], color: "#d7b36b", ribbon: "#a62834", turn: 0.14, round: false, dots: false, bottom: 0 },
+  { angle: 3.45, radius: 4.76, size: [1.08, 0.46, 0.8], color: "#aa2834", ribbon: "#e3c273", turn: -0.16, round: false, dots: true, bottom: 0 },
+  { angle: 4.25, radius: 4.62, size: [0.7, 0.74, 0.68], color: "#e5d8b6", ribbon: "#286843", turn: 0.1, round: true, dots: false, bottom: 0 },
+  { angle: 5.05, radius: 4.74, size: [0.96, 0.44, 0.74], color: "#24633e", ribbon: "#dcb967", turn: -0.2, round: false, dots: false, bottom: 0 },
+  { angle: 5.85, radius: 4.64, size: [0.8, 0.64, 0.72], color: "#b52b36", ribbon: "#e4c474", turn: 0.16, round: false, dots: true, bottom: 0 },
+  { angle: 2.25, radius: 4.4, size: [0.64, 0.42, 0.56], color: "#e6dab9", ribbon: "#286843", turn: 0.12, round: true, dots: false, bottom: 0.74 },
+  { angle: 5.45, radius: 4.32, size: [0.58, 0.36, 0.5], color: "#d8b46b", ribbon: "#a62935", turn: -0.08, round: false, dots: false, bottom: 0.56 },
 ] as const;
 const GIFT_REACH = Math.max(...GIFTS.map((gift) => gift.radius + Math.hypot(gift.size[0], gift.size[2]) / 2));
 const GIFT_HEIGHT = Math.max(...GIFTS.map((gift) => gift.bottom + gift.size[1] + 0.2));
@@ -585,7 +544,6 @@ export function createTreeScene(options: {
   const canopy = new Group();
   tree.add(canopy);
   addFoliage(canopy, occluders, () => { dirty = true; });
-  addTreeRibbon(canopy);
   const sparkles = createArrivalSparkles(canopy);
   addGifts(tree);
 
@@ -631,6 +589,7 @@ export function createTreeScene(options: {
 
   const scratch = new Matrix4();
   const scratchQuat = new Quaternion();
+  const defaultOrnamentScale = new Vector3(DEFAULT_ORNAMENT_SCALE, DEFAULT_ORNAMENT_SCALE, DEFAULT_ORNAMENT_SCALE);
   const up = new Vector3(0, 1, 0);
   const hookMatrix = (anchor: TreeAnchor) => {
     const tip = new Vector3(...anchor.tip);
@@ -644,16 +603,18 @@ export function createTreeScene(options: {
   const setPlaceholder = (anchor: TreeAnchor, visible: boolean, sway = 0) => {
     const index = anchor.slot - 1;
     const kind = index % 3;
-    const centerX = anchor.position[0] + Math.sin(sway) * PLACEHOLDER_RADIUS;
-    const centerY = anchor.position[1] - ORNAMENT_DANGLE - PLACEHOLDER_RADIUS - 0.04;
+    const scaledRadius = PLACEHOLDER_RADIUS * DEFAULT_ORNAMENT_SCALE;
+    const centerX = anchor.position[0] + Math.sin(sway) * scaledRadius;
+    const centerY = anchor.position[1] - ORNAMENT_DANGLE - scaledRadius - 0.04;
     placeholders.setMatrixAt(index, visible && kind === 0
-      ? scratch.makeRotationZ(sway).setPosition(centerX, centerY, anchor.position[2]) : zeroMatrix);
+      ? scratch.makeRotationZ(sway).scale(defaultOrnamentScale).setPosition(centerX, centerY, anchor.position[2]) : zeroMatrix);
     bells.setMatrixAt(index, visible && kind === 1
-      ? scratch.makeRotationZ(sway).setPosition(centerX, centerY, anchor.position[2]) : zeroMatrix);
+      ? scratch.makeRotationZ(sway).scale(defaultOrnamentScale).setPosition(centerX, centerY, anchor.position[2]) : zeroMatrix);
     icicles.setMatrixAt(index, visible && kind === 2
-      ? scratch.makeRotationZ(sway).setPosition(centerX, centerY - 0.02, anchor.position[2]) : zeroMatrix);
+      ? scratch.makeRotationZ(sway).scale(defaultOrnamentScale).setPosition(centerX, centerY - 0.02, anchor.position[2]) : zeroMatrix);
     caps.setMatrixAt(index, visible
-      ? scratch.makeTranslation(anchor.position[0], anchor.position[1] - ORNAMENT_DANGLE - 0.045, anchor.position[2]) : zeroMatrix);
+      ? scratch.makeScale(DEFAULT_ORNAMENT_SCALE, DEFAULT_ORNAMENT_SCALE, DEFAULT_ORNAMENT_SCALE)
+        .setPosition(anchor.position[0], anchor.position[1] - ORNAMENT_DANGLE - 0.032, anchor.position[2]) : zeroMatrix);
     for (const mesh of [placeholders, bells, icicles, caps]) mesh.instanceMatrix.needsUpdate = true;
   };
   const setHook = (anchor: TreeAnchor, visible: boolean) => {

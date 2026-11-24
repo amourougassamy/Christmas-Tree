@@ -5,13 +5,12 @@ import { useEffect, useState } from "react";
 export function ShootingStar() {
   const [star, setStar] = useState({ visible: false, left: 20, top: 15 });
   useEffect(() => {
-    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let timer: ReturnType<typeof setTimeout>;
     let stopped = false;
     const schedule = (delay: number) => {
       timer = setTimeout(() => {
         if (stopped) return;
-        if (document.hidden || motion.matches) { schedule(45000); return; }
+        if (document.hidden) { schedule(45000); return; }
         setStar({ visible: true, left: 10 + Math.random() * 45, top: 12 + Math.random() * 12 });
         timer = setTimeout(() => {
           if (stopped) return;

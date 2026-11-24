@@ -9,13 +9,12 @@ export function ForestWaldo() {
   const [peek, setPeek] = useState({ visible: false, left: 12, flip: false });
 
   useEffect(() => {
-    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let timer: ReturnType<typeof setTimeout>;
     let stopped = false;
     const schedule = (delay = 170000) => {
       timer = setTimeout(() => {
         if (stopped) return;
-        if (document.hidden || motion.matches) {
+        if (document.hidden) {
           schedule();
           return;
         }

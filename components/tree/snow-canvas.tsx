@@ -16,7 +16,7 @@ function makeFlake(width: number, height: number, anywhere: boolean, layer: Snow
     y: anywhere ? Math.random() * height : -r * 2,
     r,
     // Size, speed and softness work together as a simple depth cue.
-    speed: foreground ? 25 + r * 7 + Math.random() * 12 : 8 + r * 7 + Math.random() * 6,
+    speed: foreground ? 48 + r * 9 + Math.random() * 18 : 14 + r * 9 + Math.random() * 9,
     sway: foreground ? 14 + Math.random() * 28 : 5 + Math.random() * 14,
     phase: Math.random() * Math.PI * 2,
     alpha: foreground ? 0.34 + Math.random() * 0.34 : 0.2 + (r / 2.95) * 0.5,
@@ -73,10 +73,13 @@ export function SnowCanvas({ className, layer = "background" }: { className?: st
       frame = requestAnimationFrame(tick);
       const dt = last ? Math.min((now - last) / 1000, 0.1) : 0;
       last = now;
-      time += dt;
+      // Keep a quiet drift for reduced-motion users instead of turning a
+      // living snowfall into a completely static field of dots.
+      const motionScale = reducedMotion.matches ? 0.28 : 1;
+      time += dt * motionScale;
       for (let i = 0; i < flakes.length; i += 1) {
         const flake = flakes[i];
-        flake.y += flake.speed * dt;
+        flake.y += flake.speed * dt * motionScale;
         if (flake.y - flake.r > height) flakes[i] = makeFlake(width, height, false, layer);
       }
       draw();
@@ -85,7 +88,7 @@ export function SnowCanvas({ className, layer = "background" }: { className?: st
     const start = () => {
       cancelAnimationFrame(frame);
       last = 0;
-      if (!reducedMotion.matches && document.visibilityState === "visible") frame = requestAnimationFrame(tick);
+      if (document.visibilityState === "visible") frame = requestAnimationFrame(tick);
       else draw();
     };
 

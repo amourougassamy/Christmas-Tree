@@ -144,10 +144,6 @@ html {
   opacity: 1;
   transform: translate(15px, 0) rotate(12deg);
 }
-@media (prefers-reduced-motion: reduce) {
-  .forest-waldo { display: none; }
-}
-
 .shooting-star {
   width: 90px;
   height: 2px;
@@ -163,7 +159,19 @@ html {
   100% { opacity: 0; transform: rotate(24deg) translateX(360px); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .shooting-star { display: none; }
+  .forest-waldo-person {
+    transition-duration: 1.4s;
+  }
+  .shooting-star {
+    animation-name: shooting-star-pass-gentle;
+    animation-duration: 3.2s;
+  }
+}
+@keyframes shooting-star-pass-gentle {
+  0% { opacity: 0; transform: rotate(24deg) translateX(0); }
+  20% { opacity: 0.7; }
+  75% { opacity: 0.4; }
+  100% { opacity: 0; transform: rotate(24deg) translateX(90px); }
 }
 
 .christmas-confetti-piece {
