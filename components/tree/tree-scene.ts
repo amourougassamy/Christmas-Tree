@@ -96,7 +96,7 @@ const ELEVATION = (5 * Math.PI) / 180;
 
 const zeroMatrix = new Matrix4().makeScale(0, 0, 0);
 
-function disposeObject(root: Object3D) {
+export function disposeObject(root: Object3D): void {
   root.traverse((child) => {
     const mesh = child as Mesh;
     if (!mesh.isMesh) return;

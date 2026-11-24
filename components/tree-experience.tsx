@@ -5,6 +5,7 @@ import { ShootingStar } from "@/components/tree/shooting-star";
 import { HolidayMusic } from "@/components/tree/holiday-music";
 import { ForestWaldo } from "@/components/tree/forest-waldo";
 import { SnowCanvas } from "@/components/tree/snow-canvas";
+import { OrnamentCloseup } from "@/components/tree/ornament-closeup";
 import { createTreeScene, type TreeScene } from "@/components/tree/tree-scene";
 import { TREE_SLOT_COUNT } from "@/lib/tree/anchors";
 import { formatOrnamentCallout } from "@/lib/tree/model";
@@ -30,6 +31,7 @@ export function TreeExperience({ ornaments, arrivalId }: { ornaments: Ornament[]
   const [autoMessageId, setAutoMessageId] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [closeupOrnament, setCloseupOrnament] = useState<Ornament | null>(null);
   const visibleOrnaments = useMemo(
     () => ornaments.filter((item) => item.slot >= 1 && item.slot <= TREE_SLOT_COUNT),
     [ornaments],
@@ -152,7 +154,6 @@ export function TreeExperience({ ornaments, arrivalId }: { ornaments: Ornament[]
                 }}
                 type="button"
                 aria-label={ornament.message ? `${ornament.message} — ${ornament.initials}, ornament slot ${ornament.slot}` : `Ornament by ${ornament.initials}, slot ${ornament.slot}`}
-                aria-pressed={active}
                 className="group pointer-events-auto absolute left-0 top-0 h-11 w-11 rounded-full opacity-0 outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-[#ffe19a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#153228]"
                 onPointerEnter={(event) => {
                   if (event.pointerType === "mouse") setActiveId(ornament.id);
@@ -160,7 +161,7 @@ export function TreeExperience({ ornaments, arrivalId }: { ornaments: Ornament[]
                 onPointerLeave={() => setActiveId((current) => current === ornament.id ? null : current)}
                 onFocus={() => setActiveId(ornament.id)}
                 onBlur={() => setActiveId((current) => current === ornament.id ? null : current)}
-                onClick={() => setActiveId((current) => current === ornament.id ? null : ornament.id)}
+                onClick={() => setCloseupOrnament(ornament)}
               >
                 <span className={`absolute left-1/2 top-[-1.8rem] w-max max-w-[min(16rem,70vw)] -translate-x-1/2 whitespace-normal rounded-xl border border-white/15 bg-[#10271f]/92 px-2.5 py-1 text-[10px] font-bold tracking-[0.16em] text-[#fff4cf] shadow-lg backdrop-blur transition duration-500 ${showMessage ? "scale-100 opacity-100" : "scale-90 opacity-0"}`}>
                   {formatOrnamentCallout(ornament.message, ornament.initials)}
@@ -180,7 +181,7 @@ export function TreeExperience({ ornaments, arrivalId }: { ornaments: Ornament[]
           <h1 className="mt-2 font-serif text-2xl tracking-[-0.03em] sm:text-4xl">Made brighter together.</h1>
         </div>
         <p className="max-w-40 text-right text-[11px] leading-relaxed text-[#f0e4df]/85 sm:max-w-60 sm:text-xs">
-          Drag sideways to spin · zoom in and drag vertically to explore
+          Drag sideways to spin · tap an ornament for a close-up
         </p>
       </header>
 
@@ -223,6 +224,7 @@ export function TreeExperience({ ornaments, arrivalId }: { ornaments: Ornament[]
           {TREE_SLOT_COUNT} branches
         </span>
       </footer>
+      <OrnamentCloseup ornament={closeupOrnament} onClose={() => setCloseupOrnament(null)} />
     </main>
   );
 }

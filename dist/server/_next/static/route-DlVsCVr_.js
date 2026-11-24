@@ -1,0 +1,1 @@
+import{a as e,r as t,t as n}from"./runtime-BPlKMzYe.js";var r=`force-dynamic`;async function i(e){return t(e,n())}async function a(t){return e(t,n())}export{i as GET,a as POST,r as dynamic};

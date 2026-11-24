@@ -1,0 +1,5 @@
+{
+  "debugPortAddress": "127.0.0.1:60245",
+  "defaultEntrypointService": "assets:rpc-proxy:community-christmas-tree",
+  "userWorkerService": "core:user:community-christmas-tree"
+}

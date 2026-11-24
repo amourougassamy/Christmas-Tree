@@ -10,16 +10,19 @@ import type { OrnamentRecord } from "../lib/ornaments/types.ts";
 
 const migrationsDir = resolve(import.meta.dirname, "..", "drizzle");
 
-function tempDir(t: test.TestContext): string {
+function tempDir(t: test.TestContext, cleanup = true): string {
   const dir = mkdtempSync(join(tmpdir(), "tree-storage-"));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  if (cleanup) t.after(() => rmSync(dir, { recursive: true, force: true }));
   return dir;
 }
 
 function setup(t: test.TestContext) {
-  const dir = tempDir(t);
+  const dir = tempDir(t, false);
   const db = openDatabase({ dir, migrationsDir });
-  t.after(() => db.close());
+  t.after(() => {
+    db.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
   return { dir, db, repo: new SqliteOrnamentRepository(db) };
 }
 
@@ -56,9 +59,9 @@ test("opens with WAL + foreign keys and migrations are idempotent", (t) => {
   assert.equal((db.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number }).foreign_keys, 1);
   assert.deepEqual(migrate(db, migrationsDir), []);
   const again = openDatabase({ dir, migrationsDir });
-  t.after(() => again.close());
   const tags = again.prepare("SELECT tag FROM __migrations").all() as { tag: string }[];
   assert.deepEqual(tags.map((row) => row.tag), ["0000_late_whizzer"]);
+  again.close();
 });
 
 test("slots are claimed round-robin and wrap past 60", async (t) => {

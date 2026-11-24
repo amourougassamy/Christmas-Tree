@@ -6,6 +6,9 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   globalIgnores([
+    ".sites-runtime/**",
+    ".wrangler/**",
+    "dist/**",
     "public/rhino3dm/**",
     "data/**",
   ]),
