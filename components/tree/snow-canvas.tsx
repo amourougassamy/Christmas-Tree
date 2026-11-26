@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 
+import { gustEnvelope } from "@/lib/tree/surprises";
+
 type SnowLayer = "background" | "foreground";
 type Flake = { x: number; y: number; r: number; speed: number; sway: number; phase: number; alpha: number; blur: number };
 
@@ -34,6 +36,7 @@ export function SnowCanvas({ className, layer = "background" }: { className?: st
     if (!canvas || !context) return;
 
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const fast = new URLSearchParams(window.location.search).get("surprises") === "fast";
     let width = 0;
     let height = 0;
     let flakes: Flake[] = [];
@@ -77,8 +80,10 @@ export function SnowCanvas({ className, layer = "background" }: { className?: st
       // living snowfall into a completely static field of dots.
       const motionScale = reducedMotion.matches ? 0.28 : 1;
       time += dt * motionScale;
+      const gust = reducedMotion.matches ? 0 : gustEnvelope(Date.now(), fast);
       for (let i = 0; i < flakes.length; i += 1) {
         const flake = flakes[i];
+        flake.x = (flake.x + gust * dt * (layer === "foreground" ? 180 : 100)) % Math.max(1, width);
         flake.y += flake.speed * dt * motionScale;
         if (flake.y - flake.r > height) flakes[i] = makeFlake(width, height, false, layer);
       }

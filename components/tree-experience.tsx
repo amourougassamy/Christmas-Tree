@@ -1,6 +1,7 @@
 "use client";
 
 import { type KeyboardEvent, type PointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import { SleighSurprise } from "@/components/tree/sleigh-surprise";
 import { ShootingStar } from "@/components/tree/shooting-star";
 import { HolidayMusic } from "@/components/tree/holiday-music";
 import { ForestWaldo } from "@/components/tree/forest-waldo";
@@ -119,6 +120,7 @@ export function TreeExperience({ ornaments, arrivalId }: { ornaments: Ornament[]
   return (
     <main className="tree-backdrop relative min-h-[100svh] overflow-hidden text-[#fff4e8]">
       <ShootingStar />
+      <SleighSurprise />
       <ForestWaldo />
       <SnowCanvas className="pointer-events-none absolute inset-0 z-0 h-full w-full" />
 

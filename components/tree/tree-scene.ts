@@ -1,3 +1,4 @@
+import { addGiftSnow, createSceneSurprises } from "@/components/tree/scene-surprises";
 import {
   ACESFilmicToneMapping,
   AmbientLight,
@@ -392,15 +393,18 @@ function addWinterGround(scene: Scene) {
   tail.position.set(0.19, 1.47, 0.43);
   tail.rotation.z = -0.12;
   snowman.add(tail);
+  let wavingArm: Mesh | undefined;
   for (const side of [-1, 1]) {
-    const arm = new Mesh(new CylinderGeometry(0.018, 0.03, 0.85, 6),
+    const arm = new Mesh(new CylinderGeometry(0.018, 0.03, 0.85, 6).translate(0, 0.425, 0),
       new MeshStandardMaterial({ color: "#71543b", roughness: 1 }));
-    arm.position.set(side * 0.69, 1.41, 0);
+    arm.position.set(side * (0.69 - Math.sin(1.1) * 0.425), 1.41 - Math.cos(1.1) * 0.425, 0);
     arm.rotation.z = side * -1.1;
     arm.castShadow = true;
     snowman.add(arm);
+    if (side === 1) wavingArm = arm;
   }
   scene.add(snowman);
+  return wavingArm;
 }
 
 /** Wrapped gifts sit on the ground just outside the lowest ornaments. */
@@ -449,6 +453,7 @@ function addGifts(tree: Group) {
     const verticalRibbon = new Mesh(new BoxGeometry(width * 0.13, height + 0.075, gift.round ? width * 0.97 : depth + 0.025), ribbon);
     const crossRibbon = new Mesh(new BoxGeometry(width + 0.025, height + 0.08, depth * 0.13), ribbon);
     group.add(box, lid, verticalRibbon, crossRibbon);
+    addGiftSnow(group, width, height, depth, gift.round);
     // Two satin loops and a knot make each parcel feel hand wrapped.
     for (const side of [-1, 1]) {
       const bow = new Mesh(new TorusGeometry(width * 0.12, 0.025, 10, 32), ribbon);
@@ -537,7 +542,7 @@ export function createTreeScene(options: {
 
   const tree = new Group();
   scene.add(tree);
-  addWinterGround(scene);
+  const wavingArm = addWinterGround(scene);
   const winterDetails = addWinterDetails(scene);
   const occluders: Object3D[] = [];
   let dirty = true;
@@ -546,6 +551,7 @@ export function createTreeScene(options: {
   addFoliage(canopy, occluders, () => { dirty = true; });
   const sparkles = createArrivalSparkles(canopy);
   addGifts(tree);
+  const updateSurprises = createSceneSurprises(tree, wavingArm, reducedMotion);
 
   // Placeholders and hooks are instanced per slot: two draw calls for all 60.
   const placeholderGeometry = new SphereGeometry(PLACEHOLDER_RADIUS, 32, 24);
@@ -807,13 +813,18 @@ export function createTreeScene(options: {
     const dt = Math.min((now - last) / 1000, 0.1);
     last = now;
     if (stepSpin(spin, dt, !reducedMotion)) dirty = true;
+    const surprise = updateSurprises(Date.now());
+    if (surprise.changed) dirty = true;
+    const sway = 1 + surprise.gust * 2.5;
     const time = now / 1000;
     if (!reducedMotion) {
       canopy.rotation.z = Math.sin(time * 0.34) * 0.0045 + Math.sin(time * 0.13 + 1.4) * 0.002;
       canopy.rotation.x = Math.sin(time * 0.27 + 1) * 0.0022 + Math.sin(time * 0.11) * 0.001;
+      canopy.rotation.z *= sway;
+      canopy.rotation.x *= sway;
       for (const entry of slots.values()) {
-        entry.group.rotation.z = Math.sin(time * 0.85 + entry.anchor.slot * 1.7) * 0.035;
-        entry.group.rotation.x = Math.sin(time * 0.63 + entry.anchor.slot) * 0.018;
+        entry.group.rotation.z = Math.sin(time * 0.85 + entry.anchor.slot * 1.7) * 0.035 * sway;
+        entry.group.rotation.x = Math.sin(time * 0.63 + entry.anchor.slot) * 0.018 * sway;
       }
       for (const anchor of TREE_ANCHORS) {
         if (slots.get(anchor.slot)?.state !== "loaded") {
