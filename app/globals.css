@@ -253,3 +253,13 @@ html {
     animation: none;
   }
 }
+
+/* TV showcase: fills over the close-up hold; duration is set inline. */
+.showcase-progress {
+  animation: showcase-progress linear forwards;
+}
+
+@keyframes showcase-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
