@@ -39,6 +39,7 @@ import {
 } from "three";
 import { createSlotMaterial } from "@/components/tree/empty-slots";
 import { addWinterDetails, createArrivalSparkles } from "@/components/tree/winter-details";
+import { createWinterEnvironment } from "@/components/tree/environment";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { TREE_ANCHORS, type TreeAnchor } from "@/lib/tree/anchors";
@@ -523,6 +524,9 @@ export function createTreeScene(options: {
   renderer.domElement.setAttribute("aria-hidden", "true");
   renderer.domElement.style.display = "block";
   mount.appendChild(renderer.domElement);
+  const environment = createWinterEnvironment(renderer);
+  scene.environment = environment.texture;
+  scene.environmentIntensity = 0.35;
 
   // Lights live in the scene, not the spinning tree, and the camera never
   // moves, so shading stays put while the tree turns.
@@ -557,6 +561,18 @@ export function createTreeScene(options: {
   const sparkles = createArrivalSparkles(canopy);
   addGifts(tree);
   const updateSurprises = createSceneSurprises(tree, wavingArm, reducedMotion);
+  // Keep diffuse scenery close to its original lighting; ornaments added below
+  // retain the full reflection strength.
+  scene.traverse((object) => {
+    if (!(object instanceof Mesh)) return;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    for (const material of materials) {
+      if (material instanceof MeshStandardMaterial) {
+        material.envMap = environment.texture;
+        material.envMapIntensity = 0.1;
+      }
+    }
+  });
 
   // Placeholders and hooks are instanced per slot: two draw calls for all 60.
   const placeholderGeometry = new SphereGeometry(PLACEHOLDER_RADIUS, 32, 24);
@@ -926,6 +942,8 @@ export function createTreeScene(options: {
       queue.dispose();
       for (const slot of [...slots.keys()]) removeSlot(slot);
       disposeObject(scene);
+      scene.environment = null;
+      environment.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
       renderer.domElement.remove();

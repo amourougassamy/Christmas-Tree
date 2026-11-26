@@ -15,6 +15,7 @@ import {
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { disposeObject } from "@/components/tree/tree-scene";
+import { createWinterEnvironment } from "@/components/tree/environment";
 import {
   closeupBeginDrag,
   closeupCameraDistance,
@@ -52,6 +53,9 @@ export function createCloseupStage(options: {
   renderer.domElement.style.height = "100%";
   renderer.domElement.style.touchAction = "none";
   mount.appendChild(renderer.domElement);
+  const environment = createWinterEnvironment(renderer);
+  scene.environment = environment.texture;
+  scene.environmentIntensity = 0.5;
 
   scene.add(new AmbientLight("#b2b6d4", 0.5));
   scene.add(new HemisphereLight("#b9bddd", "#636b83", 0.75));
@@ -188,6 +192,8 @@ export function createCloseupStage(options: {
       renderer.domElement.removeEventListener("pointerup", onPointerEnd);
       renderer.domElement.removeEventListener("pointercancel", onPointerEnd);
       if (model) disposeObject(model);
+      scene.environment = null;
+      environment.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     },
