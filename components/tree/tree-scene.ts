@@ -38,6 +38,7 @@ import {
   WebGLRenderer,
 } from "three";
 import { createSlotMaterial } from "@/components/tree/empty-slots";
+import { createBloom, createGlowAnimation, twinkleBulbs } from "@/components/tree/glow";
 import { addWinterDetails, createArrivalSparkles } from "@/components/tree/winter-details";
 import { createWinterEnvironment } from "@/components/tree/environment";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
@@ -291,7 +292,7 @@ function addFoliage(tree: Group, occluders: Object3D[], onTextureReady: () => vo
   const topper = new Group();
   topper.position.y = STAR_Y + 0.42;
   const star = new Mesh(starGeometry, new MeshPhysicalMaterial({
-    color: "#edbb45", emissive: "#e6a328", emissiveIntensity: 0.45,
+    name: "star-glow", color: "#edbb45", emissive: "#e6a328", emissiveIntensity: 0.45,
     metalness: 0.78, roughness: 0.24, clearcoat: 0.8,
   }));
   topper.add(star);
@@ -343,6 +344,7 @@ function addFoliage(tree: Group, occluders: Object3D[], onTextureReady: () => vo
       index += 1;
     }
   });
+  twinkleBulbs(bulbs);
   tree.add(bulbs);
   return bulbs.material;
 }
@@ -506,6 +508,7 @@ export function createTreeScene(options: {
   mount: HTMLElement;
   getButton: (id: string) => HTMLElement | undefined;
   reducedMotion: boolean;
+  bloom?: boolean;
   onReveal?: (id: string) => void;
 }): TreeScene {
   const { mount, getButton, reducedMotion } = options;
@@ -519,6 +522,7 @@ export function createTreeScene(options: {
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
+  renderer.info.autoReset = false;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = PCFSoftShadowMap;
   renderer.domElement.setAttribute("aria-hidden", "true");
@@ -573,6 +577,8 @@ export function createTreeScene(options: {
       }
     }
   });
+  const glowAnimation = createGlowAnimation(scene, reducedMotion);
+  const bloom = createBloom(renderer, scene, camera, options.bloom);
 
   // Placeholders and hooks are instanced per slot: two draw calls for all 60.
   const placeholderGeometry = new SphereGeometry(PLACEHOLDER_RADIUS, 32, 24);
@@ -761,6 +767,7 @@ export function createTreeScene(options: {
     const width = Math.max(mount.clientWidth, 1);
     const height = Math.max(mount.clientHeight, 1);
     renderer.setSize(width, height, false);
+    bloom?.resize(width, height);
     renderer.domElement.style.width = "100%";
     renderer.domElement.style.height = "100%";
     camera.aspect = width / height;
@@ -862,13 +869,16 @@ export function createTreeScene(options: {
         }
       }
       winterDetails.update(time);
+      glowAnimation.update(time);
       dirty = true;
     }
     if (sparkles.update(time)) dirty = true;
     if (!dirty) return;
     dirty = false;
     tree.rotation.y = spin.angle;
-    renderer.render(scene, camera);
+    renderer.info.reset();
+    if (bloom) bloom.render();
+    else renderer.render(scene, camera);
     const spinning = Math.abs(spin.angle - previousAngle) > 0.00001;
     previousAngle = spin.angle;
     updateCallouts(now, spinning);
@@ -944,6 +954,7 @@ export function createTreeScene(options: {
       disposeObject(scene);
       scene.environment = null;
       environment.dispose();
+      bloom?.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
       renderer.domElement.remove();
