@@ -1,4 +1,5 @@
 import { addGiftSnow, createSceneSurprises } from "@/components/tree/scene-surprises";
+import type { TimeOfDayLook } from "@/lib/tree/time-of-day";
 import {
   ACESFilmicToneMapping,
   AmbientLight,
@@ -74,6 +75,7 @@ export type TreeScene = {
   nudge(direction: -1 | 1): void;
   pan(delta: number): void;
   zoom(value: number): void;
+  setTimeOfDay(look: TimeOfDayLook): void;
   stats(): TreeSceneStats;
   dispose(): void;
 };
@@ -341,6 +343,7 @@ function addFoliage(tree: Group, occluders: Object3D[], onTextureReady: () => vo
     }
   });
   tree.add(bulbs);
+  return bulbs.material;
 }
 
 /** Stationary snow surface and a small companion behind the community tree. */
@@ -523,8 +526,9 @@ export function createTreeScene(options: {
 
   // Lights live in the scene, not the spinning tree, and the camera never
   // moves, so shading stays put while the tree turns.
-  scene.add(new AmbientLight("#b2b6d4", 0.5));
-  scene.add(new HemisphereLight("#b9bddd", "#636b83", 0.75));
+  const ambient = new AmbientLight("#b2b6d4", 0.5);
+  const hemisphere = new HemisphereLight("#b9bddd", "#636b83", 0.75);
+  scene.add(ambient, hemisphere);
   const key = new DirectionalLight("#efb58b", 1.65);
   key.position.set(9, 5, -3);
   key.castShadow = true;
@@ -549,7 +553,7 @@ export function createTreeScene(options: {
   let dirty = true;
   const canopy = new Group();
   tree.add(canopy);
-  addFoliage(canopy, occluders, () => { dirty = true; });
+  const fairyMaterial = addFoliage(canopy, occluders, () => { dirty = true; });
   const sparkles = createArrivalSparkles(canopy);
   addGifts(tree);
   const updateSurprises = createSceneSurprises(tree, wavingArm, reducedMotion);
@@ -856,6 +860,17 @@ export function createTreeScene(options: {
   frame = requestAnimationFrame(render);
 
   return {
+    setTimeOfDay(look) {
+      ambient.color.set(look.ambient);
+      ambient.intensity = look.ambientIntensity;
+      hemisphere.color.set(look.sky);
+      hemisphere.groundColor.set(look.ground);
+      hemisphere.intensity = look.hemisphereIntensity;
+      key.color.set(look.key);
+      key.intensity = look.keyIntensity;
+      winterDetails.setNightFactor(look.nightFactor);
+      fairyMaterial.color.setScalar(0.55 + look.nightFactor * (0.45 / 0.65));
+    },
     sync,
     pointerDown(x, y) {
       beginDrag(spin);

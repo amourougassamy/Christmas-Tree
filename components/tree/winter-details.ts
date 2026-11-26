@@ -83,10 +83,15 @@ export function addWinterDetails(scene: Scene) {
     }
   }
 
+  let nightFactor = 0.65;
   return {
+    setNightFactor(value: number) {
+      nightFactor = value;
+      lanternLights.forEach((light) => { light.intensity = 3.6 * (0.35 + nightFactor); });
+    },
     update(time: number) {
       lanternLights.forEach((light, i) => {
-        light.intensity = 3.6 + Math.sin(time * 1.8 + i * 3) * 0.13 + Math.sin(time * 3.7 + i) * 0.06;
+        light.intensity = (0.35 + nightFactor) * (3.6 + Math.sin(time * 1.8 + i * 3) * 0.13 + Math.sin(time * 3.7 + i) * 0.06);
       });
     },
   };
