@@ -7,6 +7,7 @@ import { ForestWaldo } from "@/components/tree/forest-waldo";
 import { SnowCanvas } from "@/components/tree/snow-canvas";
 import { OrnamentCloseup } from "@/components/tree/ornament-closeup";
 import { createTreeScene, type TreeScene } from "@/components/tree/tree-scene";
+import { followLocalClock } from "@/components/tree/time-of-day";
 import { TREE_SLOT_COUNT } from "@/lib/tree/anchors";
 import { formatOrnamentCallout } from "@/lib/tree/model";
 
@@ -52,8 +53,10 @@ export function TreeExperience({ ornaments, arrivalId }: { ornaments: Ornament[]
       reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
     });
     sceneRef.current = scene;
+    const stopClock = followLocalClock(scene, mount);
     scene.sync(latestOrnaments.current);
     return () => {
+      stopClock();
       sceneRef.current = null;
       scene.dispose();
     };
