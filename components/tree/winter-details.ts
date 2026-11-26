@@ -44,7 +44,7 @@ export function addWinterDetails(scene: Scene) {
     const candle = new Mesh(new CylinderGeometry(0.09, 0.09, 0.3, 12), candleMaterial);
     candle.position.y = 0.29;
     lantern.add(candle);
-    const flame = new Mesh(new SphereGeometry(0.07, 10, 8), new MeshStandardMaterial({ name: "lantern-flame", color: "#ffe0a0", emissive: "#ffe0a0", emissiveIntensity: 5 }));
+    const flame = new Mesh(new SphereGeometry(0.07, 10, 8), new MeshStandardMaterial({ name: "lantern-flame", color: "#ffe0a0", emissive: "#ffc874", emissiveIntensity: 1.3 }));
     flame.scale.y = 1.7;
     flame.position.y = 0.51;
     lantern.add(flame);

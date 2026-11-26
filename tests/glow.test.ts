@@ -1,13 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { defaultBloom, glowPulse } from "../lib/tree/glow.ts";
-
-test("bloom defaults conservatively for desktop-class devices", () => {
-  assert.equal(defaultBloom(1, 8), true);
-  assert.equal(defaultBloom(2, 4), true);
-  assert.equal(defaultBloom(3, 8), false);
-  assert.equal(defaultBloom(1, 2), false);
-});
+import { EMISSIVE_LEVEL, glowPulse, haloOpacity } from "../lib/tree/glow.ts";
 
 test("emissive pulse stays gentle and phases differ", () => {
   for (let t = 0; t < 300; t += 0.1) {
@@ -16,24 +9,30 @@ test("emissive pulse stays gentle and phases differ", () => {
   assert.notEqual(glowPulse(1, 0), glowPulse(1, 2.1));
 });
 
+test("halos are faint by day, softly stronger at night, and clamped", () => {
+  assert.ok(haloOpacity(0) < haloOpacity(1));
+  assert.ok(haloOpacity(1) <= 0.5, "halos must stay subtle even at night");
+  assert.equal(haloOpacity(-1), haloOpacity(0));
+  assert.equal(haloOpacity(2), haloOpacity(1));
+});
+
+test("star and lantern stay near their pre-bloom levels", () => {
+  assert.ok(EMISSIVE_LEVEL["star-glow"] < 1);
+  assert.ok(EMISSIVE_LEVEL["lantern-flame"] < 2);
+});
+
 // Material updates must stay frozen when the viewer requests reduced motion.
-test("reduced motion freezes twinkle uniforms and emissive pulse", async () => {
-  const { Scene, Mesh, MeshStandardMaterial, SphereGeometry, InstancedMesh, MeshBasicMaterial } = await import("three");
-  const { createGlowAnimation, twinkleBulbs } = await import("../components/tree/glow.ts");
+test("reduced motion freezes the emissive pulse", async () => {
+  const { Scene, Mesh, MeshStandardMaterial, SphereGeometry } = await import("three");
+  const { createGlowAnimation } = await import("../components/tree/glow.ts");
   const scene = new Scene();
   const star = new MeshStandardMaterial({ name: "star-glow" });
   scene.add(new Mesh(new SphereGeometry(), star));
-  const bulbs = new InstancedMesh(new SphereGeometry(), new MeshBasicMaterial(), 3);
-  twinkleBulbs(bulbs);
-  scene.add(bulbs);
   const frozen = createGlowAnimation(scene, true);
   const initial = star.emissiveIntensity;
+  assert.equal(initial, EMISSIVE_LEVEL["star-glow"] * glowPulse(0, 0));
   frozen.update(10);
   assert.equal(star.emissiveIntensity, initial);
-  assert.equal(bulbs.material.userData.glowTime.value, 0);
-  const animated = createGlowAnimation(scene, false);
-  animated.update(10);
+  createGlowAnimation(scene, false).update(10);
   assert.notEqual(star.emissiveIntensity, initial);
-  assert.equal(bulbs.material.userData.glowTime.value, 10);
-  assert.equal(bulbs.geometry.getAttribute("glowPhase").count, 3);
 });

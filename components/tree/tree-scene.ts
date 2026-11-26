@@ -38,7 +38,8 @@ import {
   WebGLRenderer,
 } from "three";
 import { createSlotMaterial } from "@/components/tree/empty-slots";
-import { createBloom, createGlowAnimation, twinkleBulbs } from "@/components/tree/glow";
+import { addBulbGlow, createGlowAnimation } from "@/components/tree/glow";
+import { STAR_HALO_SCALE } from "@/lib/tree/glow";
 import { addWinterDetails, createArrivalSparkles } from "@/components/tree/winter-details";
 import { createWinterEnvironment } from "@/components/tree/environment";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
@@ -328,7 +329,7 @@ function addFoliage(tree: Group, occluders: Object3D[], onTextureReady: () => vo
   const bulbColours = ["#ffd27a", "#fff3d6", "#ff8a6a"].map((value) => new Color(value));
   const perTier = TREE_TIERS.map((tier) => Math.round(tier.radius * 4));
   const total = perTier.reduce((sum, count) => sum + count, 0);
-  const bulbs = new InstancedMesh(new SphereGeometry(0.07, 8, 6), new MeshBasicMaterial({ color: "#ffffff" }), total);
+  const bulbs = new InstancedMesh(new SphereGeometry(0.05, 10, 8), new MeshBasicMaterial({ color: "#ffffff" }), total);
   const matrix = new Matrix4();
   let index = 0;
   TREE_TIERS.forEach((tier, layer) => {
@@ -344,9 +345,8 @@ function addFoliage(tree: Group, occluders: Object3D[], onTextureReady: () => vo
       index += 1;
     }
   });
-  twinkleBulbs(bulbs);
   tree.add(bulbs);
-  return bulbs.material;
+  return bulbs;
 }
 
 /** Stationary snow surface and a small companion behind the community tree. */
@@ -508,7 +508,6 @@ export function createTreeScene(options: {
   mount: HTMLElement;
   getButton: (id: string) => HTMLElement | undefined;
   reducedMotion: boolean;
-  bloom?: boolean;
   onReveal?: (id: string) => void;
 }): TreeScene {
   const { mount, getButton, reducedMotion } = options;
@@ -561,7 +560,7 @@ export function createTreeScene(options: {
   let dirty = true;
   const canopy = new Group();
   tree.add(canopy);
-  const fairyMaterial = addFoliage(canopy, occluders, () => { dirty = true; });
+  const fairyBulbs = addFoliage(canopy, occluders, () => { dirty = true; });
   const sparkles = createArrivalSparkles(canopy);
   addGifts(tree);
   const updateSurprises = createSceneSurprises(tree, wavingArm, reducedMotion);
@@ -578,7 +577,9 @@ export function createTreeScene(options: {
     }
   });
   const glowAnimation = createGlowAnimation(scene, reducedMotion);
-  const bloom = createBloom(renderer, scene, camera, options.bloom);
+  const bulbGlow = addBulbGlow(fairyBulbs, reducedMotion, [
+    { position: [0, STAR_Y + 0.42, 0], color: "#ffd99a", scale: STAR_HALO_SCALE },
+  ]);
 
   // Placeholders and hooks are instanced per slot: two draw calls for all 60.
   const placeholderGeometry = new SphereGeometry(PLACEHOLDER_RADIUS, 32, 24);
@@ -767,7 +768,6 @@ export function createTreeScene(options: {
     const width = Math.max(mount.clientWidth, 1);
     const height = Math.max(mount.clientHeight, 1);
     renderer.setSize(width, height, false);
-    bloom?.resize(width, height);
     renderer.domElement.style.width = "100%";
     renderer.domElement.style.height = "100%";
     camera.aspect = width / height;
@@ -870,6 +870,7 @@ export function createTreeScene(options: {
       }
       winterDetails.update(time);
       glowAnimation.update(time);
+      bulbGlow.update(time);
       dirty = true;
     }
     if (sparkles.update(time)) dirty = true;
@@ -877,8 +878,7 @@ export function createTreeScene(options: {
     dirty = false;
     tree.rotation.y = spin.angle;
     renderer.info.reset();
-    if (bloom) bloom.render();
-    else renderer.render(scene, camera);
+    renderer.render(scene, camera);
     const spinning = Math.abs(spin.angle - previousAngle) > 0.00001;
     previousAngle = spin.angle;
     updateCallouts(now, spinning);
@@ -895,7 +895,7 @@ export function createTreeScene(options: {
       key.color.set(look.key);
       key.intensity = look.keyIntensity;
       winterDetails.setNightFactor(look.nightFactor);
-      fairyMaterial.color.setScalar(0.55 + look.nightFactor * (0.45 / 0.65));
+      bulbGlow.setNightFactor(look.nightFactor);
     },
     sync,
     pointerDown(x, y) {
@@ -954,7 +954,7 @@ export function createTreeScene(options: {
       disposeObject(scene);
       scene.environment = null;
       environment.dispose();
-      bloom?.dispose();
+      bulbGlow.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
       renderer.domElement.remove();
