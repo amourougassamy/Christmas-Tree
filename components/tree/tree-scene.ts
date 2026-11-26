@@ -35,6 +35,7 @@ import {
   Vector2,
   WebGLRenderer,
 } from "three";
+import { createSlotMaterial } from "@/components/tree/empty-slots";
 import { addWinterDetails, createArrivalSparkles } from "@/components/tree/winter-details";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
@@ -549,7 +550,9 @@ export function createTreeScene(options: {
 
   // Placeholders and hooks are instanced per slot: two draw calls for all 60.
   const placeholderGeometry = new SphereGeometry(PLACEHOLDER_RADIUS, 32, 24);
-  const placeholderMaterial = new MeshPhysicalMaterial({ color: "#ffffff", emissive: "#e9b955", emissiveIntensity: 0.16, clearcoat: 0.65, roughness: 0.3, metalness: 0.08 });
+  const slotMaterial = createSlotMaterial(placeholderGeometry, TREE_ANCHORS.length);
+  const placeholderMaterial = slotMaterial.material;
+  const occupiedSlots = new Set<number>();
   const placeholders = new InstancedMesh(placeholderGeometry, placeholderMaterial, TREE_ANCHORS.length);
   const hookGeometry = new CylinderGeometry(STRING_RADIUS, STRING_RADIUS, 1, 10, 1, true);
   const hookMaterial = new MeshStandardMaterial({ color: "#d8c08a", metalness: 0.6, roughness: 0.4 });
@@ -581,7 +584,7 @@ export function createTreeScene(options: {
   for (let i = 0; i < TREE_ANCHORS.length; i += 1) {
     placeholders.setMatrixAt(i, zeroMatrix);
     hooks.setMatrixAt(i, zeroMatrix);
-    placeholders.setColorAt(i, placeholderColour.set(PLACEHOLDER_PALETTE[i % PLACEHOLDER_PALETTE.length]));
+    placeholders.setColorAt(i, placeholderColour.set("#ffffff"));
   }
   // Instances move around the whole tree; skip per-object culling.
   placeholders.frustumCulled = hooks.frustumCulled = false;
@@ -602,7 +605,12 @@ export function createTreeScene(options: {
   };
   const setPlaceholder = (anchor: TreeAnchor, visible: boolean, sway = 0) => {
     const index = anchor.slot - 1;
-    const kind = index % 3;
+    const occupied = occupiedSlots.has(anchor.slot);
+    const kind = occupied ? index % 3 : 0;
+    if (slotMaterial.setOccupied(index, occupied)) {
+      placeholders.setColorAt(index, placeholderColour.set(occupied ? PLACEHOLDER_PALETTE[index % PLACEHOLDER_PALETTE.length] : "#ffffff"));
+      if (placeholders.instanceColor) placeholders.instanceColor.needsUpdate = true;
+    }
     const scaledRadius = PLACEHOLDER_RADIUS * DEFAULT_ORNAMENT_SCALE;
     const centerX = anchor.position[0] + Math.sin(sway) * scaledRadius;
     const centerY = anchor.position[1] - ORNAMENT_DANGLE - scaledRadius - 0.04;
@@ -612,7 +620,7 @@ export function createTreeScene(options: {
       ? scratch.makeRotationZ(sway).scale(defaultOrnamentScale).setPosition(centerX, centerY, anchor.position[2]) : zeroMatrix);
     icicles.setMatrixAt(index, visible && kind === 2
       ? scratch.makeRotationZ(sway).scale(defaultOrnamentScale).setPosition(centerX, centerY - 0.02, anchor.position[2]) : zeroMatrix);
-    caps.setMatrixAt(index, visible
+    caps.setMatrixAt(index, visible && occupied
       ? scratch.makeScale(DEFAULT_ORNAMENT_SCALE, DEFAULT_ORNAMENT_SCALE, DEFAULT_ORNAMENT_SCALE)
         .setPosition(anchor.position[0], anchor.position[1] - ORNAMENT_DANGLE - 0.032, anchor.position[2]) : zeroMatrix);
     for (const mesh of [placeholders, bells, icicles, caps]) mesh.instanceMatrix.needsUpdate = true;
@@ -686,6 +694,7 @@ export function createTreeScene(options: {
     if (!entry) return;
     queue.cancel(entry.ornament.id);
     slots.delete(slot);
+    occupiedSlots.delete(slot);
     lastRevealed.delete(entry.ornament.id);
     canopy.remove(entry.group);
     if (entry.model) disposeObject(entry.model);
@@ -714,6 +723,7 @@ export function createTreeScene(options: {
       canopy.add(group);
       const entry: SlotEntry = { ornament, anchor, group, model: null, state: "pending", celebrate: ornament.id === arrivalId };
       slots.set(slot, entry);
+      occupiedSlots.add(slot);
       setPlaceholder(anchor, true);
       setHook(anchor, true);
       queue.add(ornament.id, entry);

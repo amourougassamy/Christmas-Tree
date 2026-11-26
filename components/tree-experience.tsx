@@ -8,6 +8,7 @@ import { ForestWaldo } from "@/components/tree/forest-waldo";
 import { SnowCanvas } from "@/components/tree/snow-canvas";
 import { OrnamentCloseup } from "@/components/tree/ornament-closeup";
 import { createTreeScene, type TreeScene } from "@/components/tree/tree-scene";
+import { treeFillProgress } from "@/lib/tree/fill-progress";
 import { TREE_SLOT_COUNT } from "@/lib/tree/anchors";
 import { formatOrnamentCallout } from "@/lib/tree/model";
 import {
@@ -51,9 +52,8 @@ export function TreeExperience({ ornaments, arrivalId }: { ornaments: Ornament[]
     [ornaments],
   );
   const latestOrnaments = useRef(visibleOrnaments);
-  const status = visibleOrnaments.length
-    ? `${visibleOrnaments.length} community ornaments on the tree`
-    : "Traditional decorations for now — add yours to make it our tree";
+  const fill = treeFillProgress(new Set(visibleOrnaments.map((item) => item.slot)).size, TREE_SLOT_COUNT);
+  const status = `${fill.label}${fill.decorated === 0 ? " — add yours to make it our tree" : ""}`;
 
   // Build the scene once; ornament changes are applied slot by slot below.
   useEffect(() => {
@@ -327,9 +327,12 @@ export function TreeExperience({ ornaments, arrivalId }: { ornaments: Ornament[]
             Happy Holidays from Adv Geom TST
           </p>
         </div>
-        <span className="rounded-full border border-[#547064]/20 bg-white/65 px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.15em] text-[#426052] backdrop-blur">
-          {TREE_SLOT_COUNT} branches
-        </span>
+        <div className="min-w-0 rounded-xl border border-[#547064]/20 bg-white/65 px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.15em] text-[#426052] backdrop-blur">
+          <span>{fill.label}</span>
+          <div role="progressbar" aria-label="Branches decorated" aria-valuemin={0} aria-valuemax={fill.total} aria-valuenow={fill.decorated} className="mt-1.5 h-0.5 overflow-hidden rounded-full bg-[#547064]/15">
+            <div className="h-full rounded-full bg-[#547064]" style={{ width: `${fill.percent}%` }} />
+          </div>
+        </div>
       </footer>
       <OrnamentCloseup
         ornament={displayedCloseup}
