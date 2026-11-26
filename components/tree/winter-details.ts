@@ -44,7 +44,7 @@ export function addWinterDetails(scene: Scene) {
     const candle = new Mesh(new CylinderGeometry(0.09, 0.09, 0.3, 12), candleMaterial);
     candle.position.y = 0.29;
     lantern.add(candle);
-    const flame = new Mesh(new SphereGeometry(0.07, 10, 8), candleMaterial);
+    const flame = new Mesh(new SphereGeometry(0.07, 10, 8), new MeshStandardMaterial({ name: "lantern-flame", color: "#ffe0a0", emissive: "#ffc874", emissiveIntensity: 1.3 }));
     flame.scale.y = 1.7;
     flame.position.y = 0.51;
     lantern.add(flame);
@@ -83,10 +83,15 @@ export function addWinterDetails(scene: Scene) {
     }
   }
 
+  let nightFactor = 0.65;
   return {
+    setNightFactor(value: number) {
+      nightFactor = value;
+      lanternLights.forEach((light) => { light.intensity = 3.6 * (0.35 + nightFactor); });
+    },
     update(time: number) {
       lanternLights.forEach((light, i) => {
-        light.intensity = 3.6 + Math.sin(time * 1.8 + i * 3) * 0.13 + Math.sin(time * 3.7 + i) * 0.06;
+        light.intensity = (0.35 + nightFactor) * (3.6 + Math.sin(time * 1.8 + i * 3) * 0.13 + Math.sin(time * 3.7 + i) * 0.06);
       });
     },
   };

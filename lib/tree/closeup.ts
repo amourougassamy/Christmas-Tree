@@ -66,6 +66,15 @@ export function stepCloseupRotation(state: CloseupRotation, dt: number, autoSpin
   return true;
 }
 
+/**
+ * Showcase turntable: exactly one full turn over `turnSeconds`, linear so the
+ * speed is steady on a TV, then it holds at the starting pose.
+ */
+export function turntableYaw(startYaw: number, elapsedSeconds: number, turnSeconds: number): number {
+  if (turnSeconds <= 0) return startYaw;
+  return startYaw + Math.PI * 2 * clamp(elapsedSeconds / turnSeconds, 0, 1);
+}
+
 export function closeupCameraDistance(radius: number, fovY: number, aspect: number, maxFraction = 0.62): number {
   const vertical = radius / Math.tan(fovY / 2);
   const horizontal = radius / (Math.tan(fovY / 2) * aspect);

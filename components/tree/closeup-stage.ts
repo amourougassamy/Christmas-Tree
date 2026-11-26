@@ -15,6 +15,7 @@ import {
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { disposeObject } from "@/components/tree/tree-scene";
+import { createWinterEnvironment } from "@/components/tree/environment";
 import {
   closeupBeginDrag,
   closeupCameraDistance,
@@ -22,6 +23,7 @@ import {
   closeupEndDrag,
   createCloseupRotation,
   stepCloseupRotation,
+  turntableYaw,
 } from "@/lib/tree/closeup";
 import { SCENE_UNITS_PER_METRE } from "@/lib/tree/geometry";
 import { prepareOrnamentModel } from "@/lib/tree/model";
@@ -32,9 +34,11 @@ export function createCloseupStage(options: {
   mount: HTMLElement;
   modelUrl: string;
   reducedMotion: boolean;
+  /** Showcase mode: turn exactly once over this many seconds and ignore dragging. */
+  turnSeconds?: number;
   onStateChange?: (state: CloseupStageState) => void;
 }): { dispose(): void } {
-  const { mount, modelUrl, reducedMotion, onStateChange } = options;
+  const { mount, modelUrl, reducedMotion, turnSeconds, onStateChange } = options;
   const scene = new Scene();
   const camera = new PerspectiveCamera(30, 1, 0.01, 200);
   const renderer = new WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
@@ -49,6 +53,9 @@ export function createCloseupStage(options: {
   renderer.domElement.style.height = "100%";
   renderer.domElement.style.touchAction = "none";
   mount.appendChild(renderer.domElement);
+  const environment = createWinterEnvironment(renderer);
+  scene.environment = environment.texture;
+  scene.environmentIntensity = 0.5;
 
   scene.add(new AmbientLight("#b2b6d4", 0.5));
   scene.add(new HemisphereLight("#b9bddd", "#636b83", 0.75));
@@ -73,6 +80,8 @@ export function createCloseupStage(options: {
   let disposed = false;
   let frame = 0;
   let previousFrame = performance.now();
+  /** When the turntable started (model ready); null until then. */
+  let turnStartedAt: number | null = null;
   let pointer: { id: number; x: number; y: number; movedAt: number } | null = null;
 
   const fitCamera = () => {
@@ -93,7 +102,12 @@ export function createCloseupStage(options: {
     if (disposed) return;
     const dt = Math.min((now - previousFrame) / 1000, 0.1);
     previousFrame = now;
-    if (stepCloseupRotation(rotation, dt, !reducedMotion)) {
+    if (turnSeconds) {
+      if (turnStartedAt !== null) {
+        yawGroup.rotation.y = turntableYaw(rotation.yaw, (now - turnStartedAt) / 1000, turnSeconds);
+        dirty = true;
+      }
+    } else if (stepCloseupRotation(rotation, dt, !reducedMotion)) {
       yawGroup.rotation.y = rotation.yaw;
       pitchGroup.rotation.x = rotation.pitch;
       dirty = true;
@@ -107,6 +121,7 @@ export function createCloseupStage(options: {
   frame = requestAnimationFrame(animate);
 
   const onPointerDown = (event: PointerEvent) => {
+    if (turnSeconds) return;
     if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
     renderer.domElement.setPointerCapture(event.pointerId);
     pointer = { id: event.pointerId, x: event.clientX, y: event.clientY, movedAt: performance.now() };
@@ -157,6 +172,7 @@ export function createCloseupStage(options: {
       model = loaded;
       pitchGroup.add(loaded);
       fitCamera();
+      turnStartedAt = performance.now();
       onStateChange?.("ready");
     } catch (error) {
       if (disposed) return;
@@ -176,6 +192,8 @@ export function createCloseupStage(options: {
       renderer.domElement.removeEventListener("pointerup", onPointerEnd);
       renderer.domElement.removeEventListener("pointercancel", onPointerEnd);
       if (model) disposeObject(model);
+      scene.environment = null;
+      environment.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     },

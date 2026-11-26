@@ -114,10 +114,30 @@ html {
 /* A still snowy forest behind the transparent WebGL tree and falling snow. */
 .tree-backdrop {
   filter: brightness(1.15);
+  isolation: isolate;
+}
+
+.tree-backdrop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  filter: var(--sky-filter, none);
   background-color: #c2c5d4;
   background-image: url("/white-forest.svg");
   background-position: center;
   background-size: cover;
+}
+
+.tree-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--sky-overlay, transparent);
+  opacity: var(--sky-opacity, 0);
 }
 
 /* Horizontal drags spin; vertical drags pan the close-up view. */
@@ -252,4 +272,14 @@ html {
   .christmas-celebration-card {
     animation: none;
   }
+}
+
+/* TV showcase: fills over the close-up hold; duration is set inline. */
+.showcase-progress {
+  animation: showcase-progress linear forwards;
+}
+
+@keyframes showcase-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
 }

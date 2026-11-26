@@ -1,3 +1,5 @@
+import { addGiftSnow, createSceneSurprises } from "@/components/tree/scene-surprises";
+import type { TimeOfDayLook } from "@/lib/tree/time-of-day";
 import {
   ACESFilmicToneMapping,
   AmbientLight,
@@ -35,7 +37,11 @@ import {
   Vector2,
   WebGLRenderer,
 } from "three";
+import { createSlotMaterial } from "@/components/tree/empty-slots";
+import { addBulbGlow, createGlowAnimation } from "@/components/tree/glow";
+import { STAR_HALO_SCALE } from "@/lib/tree/glow";
 import { addWinterDetails, createArrivalSparkles } from "@/components/tree/winter-details";
+import { createWinterEnvironment } from "@/components/tree/environment";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { TREE_ANCHORS, type TreeAnchor } from "@/lib/tree/anchors";
@@ -72,6 +78,7 @@ export type TreeScene = {
   nudge(direction: -1 | 1): void;
   pan(delta: number): void;
   zoom(value: number): void;
+  setTimeOfDay(look: TimeOfDayLook): void;
   stats(): TreeSceneStats;
   dispose(): void;
 };
@@ -286,7 +293,7 @@ function addFoliage(tree: Group, occluders: Object3D[], onTextureReady: () => vo
   const topper = new Group();
   topper.position.y = STAR_Y + 0.42;
   const star = new Mesh(starGeometry, new MeshPhysicalMaterial({
-    color: "#edbb45", emissive: "#e6a328", emissiveIntensity: 0.45,
+    name: "star-glow", color: "#edbb45", emissive: "#e6a328", emissiveIntensity: 0.45,
     metalness: 0.78, roughness: 0.24, clearcoat: 0.8,
   }));
   topper.add(star);
@@ -322,7 +329,7 @@ function addFoliage(tree: Group, occluders: Object3D[], onTextureReady: () => vo
   const bulbColours = ["#ffd27a", "#fff3d6", "#ff8a6a"].map((value) => new Color(value));
   const perTier = TREE_TIERS.map((tier) => Math.round(tier.radius * 4));
   const total = perTier.reduce((sum, count) => sum + count, 0);
-  const bulbs = new InstancedMesh(new SphereGeometry(0.07, 8, 6), new MeshBasicMaterial({ color: "#ffffff" }), total);
+  const bulbs = new InstancedMesh(new SphereGeometry(0.05, 10, 8), new MeshBasicMaterial({ color: "#ffffff" }), total);
   const matrix = new Matrix4();
   let index = 0;
   TREE_TIERS.forEach((tier, layer) => {
@@ -339,6 +346,7 @@ function addFoliage(tree: Group, occluders: Object3D[], onTextureReady: () => vo
     }
   });
   tree.add(bulbs);
+  return bulbs;
 }
 
 /** Stationary snow surface and a small companion behind the community tree. */
@@ -392,15 +400,18 @@ function addWinterGround(scene: Scene) {
   tail.position.set(0.19, 1.47, 0.43);
   tail.rotation.z = -0.12;
   snowman.add(tail);
+  let wavingArm: Mesh | undefined;
   for (const side of [-1, 1]) {
-    const arm = new Mesh(new CylinderGeometry(0.018, 0.03, 0.85, 6),
+    const arm = new Mesh(new CylinderGeometry(0.018, 0.03, 0.85, 6).translate(0, 0.425, 0),
       new MeshStandardMaterial({ color: "#71543b", roughness: 1 }));
-    arm.position.set(side * 0.69, 1.41, 0);
+    arm.position.set(side * (0.69 - Math.sin(1.1) * 0.425), 1.41 - Math.cos(1.1) * 0.425, 0);
     arm.rotation.z = side * -1.1;
     arm.castShadow = true;
     snowman.add(arm);
+    if (side === 1) wavingArm = arm;
   }
   scene.add(snowman);
+  return wavingArm;
 }
 
 /** Wrapped gifts sit on the ground just outside the lowest ornaments. */
@@ -449,6 +460,7 @@ function addGifts(tree: Group) {
     const verticalRibbon = new Mesh(new BoxGeometry(width * 0.13, height + 0.075, gift.round ? width * 0.97 : depth + 0.025), ribbon);
     const crossRibbon = new Mesh(new BoxGeometry(width + 0.025, height + 0.08, depth * 0.13), ribbon);
     group.add(box, lid, verticalRibbon, crossRibbon);
+    addGiftSnow(group, width, height, depth, gift.round);
     // Two satin loops and a knot make each parcel feel hand wrapped.
     for (const side of [-1, 1]) {
       const bow = new Mesh(new TorusGeometry(width * 0.12, 0.025, 10, 32), ribbon);
@@ -509,16 +521,21 @@ export function createTreeScene(options: {
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
+  renderer.info.autoReset = false;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = PCFSoftShadowMap;
   renderer.domElement.setAttribute("aria-hidden", "true");
   renderer.domElement.style.display = "block";
   mount.appendChild(renderer.domElement);
+  const environment = createWinterEnvironment(renderer);
+  scene.environment = environment.texture;
+  scene.environmentIntensity = 0.35;
 
   // Lights live in the scene, not the spinning tree, and the camera never
   // moves, so shading stays put while the tree turns.
-  scene.add(new AmbientLight("#b2b6d4", 0.5));
-  scene.add(new HemisphereLight("#b9bddd", "#636b83", 0.75));
+  const ambient = new AmbientLight("#b2b6d4", 0.5);
+  const hemisphere = new HemisphereLight("#b9bddd", "#636b83", 0.75);
+  scene.add(ambient, hemisphere);
   const key = new DirectionalLight("#efb58b", 1.65);
   key.position.set(9, 5, -3);
   key.castShadow = true;
@@ -537,19 +554,38 @@ export function createTreeScene(options: {
 
   const tree = new Group();
   scene.add(tree);
-  addWinterGround(scene);
+  const wavingArm = addWinterGround(scene);
   const winterDetails = addWinterDetails(scene);
   const occluders: Object3D[] = [];
   let dirty = true;
   const canopy = new Group();
   tree.add(canopy);
-  addFoliage(canopy, occluders, () => { dirty = true; });
+  const fairyBulbs = addFoliage(canopy, occluders, () => { dirty = true; });
   const sparkles = createArrivalSparkles(canopy);
   addGifts(tree);
+  const updateSurprises = createSceneSurprises(tree, wavingArm, reducedMotion);
+  // Keep diffuse scenery close to its original lighting; ornaments added below
+  // retain the full reflection strength.
+  scene.traverse((object) => {
+    if (!(object instanceof Mesh)) return;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    for (const material of materials) {
+      if (material instanceof MeshStandardMaterial) {
+        material.envMap = environment.texture;
+        material.envMapIntensity = 0.1;
+      }
+    }
+  });
+  const glowAnimation = createGlowAnimation(scene, reducedMotion);
+  const bulbGlow = addBulbGlow(fairyBulbs, reducedMotion, [
+    { position: [0, STAR_Y + 0.42, 0], color: "#ffd99a", scale: STAR_HALO_SCALE },
+  ]);
 
   // Placeholders and hooks are instanced per slot: two draw calls for all 60.
   const placeholderGeometry = new SphereGeometry(PLACEHOLDER_RADIUS, 32, 24);
-  const placeholderMaterial = new MeshPhysicalMaterial({ color: "#ffffff", emissive: "#e9b955", emissiveIntensity: 0.16, clearcoat: 0.65, roughness: 0.3, metalness: 0.08 });
+  const slotMaterial = createSlotMaterial(placeholderGeometry, TREE_ANCHORS.length);
+  const placeholderMaterial = slotMaterial.material;
+  const occupiedSlots = new Set<number>();
   const placeholders = new InstancedMesh(placeholderGeometry, placeholderMaterial, TREE_ANCHORS.length);
   const hookGeometry = new CylinderGeometry(STRING_RADIUS, STRING_RADIUS, 1, 10, 1, true);
   const hookMaterial = new MeshStandardMaterial({ color: "#d8c08a", metalness: 0.6, roughness: 0.4 });
@@ -581,7 +617,7 @@ export function createTreeScene(options: {
   for (let i = 0; i < TREE_ANCHORS.length; i += 1) {
     placeholders.setMatrixAt(i, zeroMatrix);
     hooks.setMatrixAt(i, zeroMatrix);
-    placeholders.setColorAt(i, placeholderColour.set(PLACEHOLDER_PALETTE[i % PLACEHOLDER_PALETTE.length]));
+    placeholders.setColorAt(i, placeholderColour.set("#ffffff"));
   }
   // Instances move around the whole tree; skip per-object culling.
   placeholders.frustumCulled = hooks.frustumCulled = false;
@@ -602,7 +638,12 @@ export function createTreeScene(options: {
   };
   const setPlaceholder = (anchor: TreeAnchor, visible: boolean, sway = 0) => {
     const index = anchor.slot - 1;
-    const kind = index % 3;
+    const occupied = occupiedSlots.has(anchor.slot);
+    const kind = occupied ? index % 3 : 0;
+    if (slotMaterial.setOccupied(index, occupied)) {
+      placeholders.setColorAt(index, placeholderColour.set(occupied ? PLACEHOLDER_PALETTE[index % PLACEHOLDER_PALETTE.length] : "#ffffff"));
+      if (placeholders.instanceColor) placeholders.instanceColor.needsUpdate = true;
+    }
     const scaledRadius = PLACEHOLDER_RADIUS * DEFAULT_ORNAMENT_SCALE;
     const centerX = anchor.position[0] + Math.sin(sway) * scaledRadius;
     const centerY = anchor.position[1] - ORNAMENT_DANGLE - scaledRadius - 0.04;
@@ -612,7 +653,7 @@ export function createTreeScene(options: {
       ? scratch.makeRotationZ(sway).scale(defaultOrnamentScale).setPosition(centerX, centerY, anchor.position[2]) : zeroMatrix);
     icicles.setMatrixAt(index, visible && kind === 2
       ? scratch.makeRotationZ(sway).scale(defaultOrnamentScale).setPosition(centerX, centerY - 0.02, anchor.position[2]) : zeroMatrix);
-    caps.setMatrixAt(index, visible
+    caps.setMatrixAt(index, visible && occupied
       ? scratch.makeScale(DEFAULT_ORNAMENT_SCALE, DEFAULT_ORNAMENT_SCALE, DEFAULT_ORNAMENT_SCALE)
         .setPosition(anchor.position[0], anchor.position[1] - ORNAMENT_DANGLE - 0.032, anchor.position[2]) : zeroMatrix);
     for (const mesh of [placeholders, bells, icicles, caps]) mesh.instanceMatrix.needsUpdate = true;
@@ -686,6 +727,7 @@ export function createTreeScene(options: {
     if (!entry) return;
     queue.cancel(entry.ornament.id);
     slots.delete(slot);
+    occupiedSlots.delete(slot);
     lastRevealed.delete(entry.ornament.id);
     canopy.remove(entry.group);
     if (entry.model) disposeObject(entry.model);
@@ -714,6 +756,7 @@ export function createTreeScene(options: {
       canopy.add(group);
       const entry: SlotEntry = { ornament, anchor, group, model: null, state: "pending", celebrate: ornament.id === arrivalId };
       slots.set(slot, entry);
+      occupiedSlots.add(slot);
       setPlaceholder(anchor, true);
       setHook(anchor, true);
       queue.add(ornament.id, entry);
@@ -807,13 +850,18 @@ export function createTreeScene(options: {
     const dt = Math.min((now - last) / 1000, 0.1);
     last = now;
     if (stepSpin(spin, dt, !reducedMotion)) dirty = true;
+    const surprise = updateSurprises(Date.now());
+    if (surprise.changed) dirty = true;
+    const sway = 1 + surprise.gust * 2.5;
     const time = now / 1000;
     if (!reducedMotion) {
       canopy.rotation.z = Math.sin(time * 0.34) * 0.0045 + Math.sin(time * 0.13 + 1.4) * 0.002;
       canopy.rotation.x = Math.sin(time * 0.27 + 1) * 0.0022 + Math.sin(time * 0.11) * 0.001;
+      canopy.rotation.z *= sway;
+      canopy.rotation.x *= sway;
       for (const entry of slots.values()) {
-        entry.group.rotation.z = Math.sin(time * 0.85 + entry.anchor.slot * 1.7) * 0.035;
-        entry.group.rotation.x = Math.sin(time * 0.63 + entry.anchor.slot) * 0.018;
+        entry.group.rotation.z = Math.sin(time * 0.85 + entry.anchor.slot * 1.7) * 0.035 * sway;
+        entry.group.rotation.x = Math.sin(time * 0.63 + entry.anchor.slot) * 0.018 * sway;
       }
       for (const anchor of TREE_ANCHORS) {
         if (slots.get(anchor.slot)?.state !== "loaded") {
@@ -821,12 +869,15 @@ export function createTreeScene(options: {
         }
       }
       winterDetails.update(time);
+      glowAnimation.update(time);
+      bulbGlow.update(time);
       dirty = true;
     }
     if (sparkles.update(time)) dirty = true;
     if (!dirty) return;
     dirty = false;
     tree.rotation.y = spin.angle;
+    renderer.info.reset();
     renderer.render(scene, camera);
     const spinning = Math.abs(spin.angle - previousAngle) > 0.00001;
     previousAngle = spin.angle;
@@ -835,6 +886,17 @@ export function createTreeScene(options: {
   frame = requestAnimationFrame(render);
 
   return {
+    setTimeOfDay(look) {
+      ambient.color.set(look.ambient);
+      ambient.intensity = look.ambientIntensity;
+      hemisphere.color.set(look.sky);
+      hemisphere.groundColor.set(look.ground);
+      hemisphere.intensity = look.hemisphereIntensity;
+      key.color.set(look.key);
+      key.intensity = look.keyIntensity;
+      winterDetails.setNightFactor(look.nightFactor);
+      bulbGlow.setNightFactor(look.nightFactor);
+    },
     sync,
     pointerDown(x, y) {
       beginDrag(spin);
@@ -890,6 +952,9 @@ export function createTreeScene(options: {
       queue.dispose();
       for (const slot of [...slots.keys()]) removeSlot(slot);
       disposeObject(scene);
+      scene.environment = null;
+      environment.dispose();
+      bulbGlow.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
       renderer.domElement.remove();
